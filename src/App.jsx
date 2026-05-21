@@ -25,8 +25,7 @@ const db = getFirestore(app);
 const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbz44rH6SVbcFQPUkdoxB7GVyeFuhZ-eO2lKqpYvFI-xDKHs1TP6eeV8HMLy5roCBIGyEQ/exec";
 
 // 💰 營收計算單價 (老闆可在此修改每次服務的金額)
-const SESSION_PRICE = 1500;
-
+const SESSION_PRICE = 1600; // 每小時價格
 // 👑 團隊成員設定
 const TEAM_MEMBERS = [
   { id: 'ted', name: 'Ted (執行長)', pwd: 'pt', role: 'admin' }, 
@@ -581,15 +580,76 @@ export default function App() {
             </div>
 
             {successData ? (
-              <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 text-center">
-                 <CheckCircle size={48} className="text-[#9aa486] mx-auto mb-4" />
-                 <h2 className="text-2xl font-bold text-[#192039] mb-6">預約申請已送出！</h2>
-                 <p className="text-slate-500 text-[14px] mb-6">請透過下方按鈕加入官方 LINE，我們將由專人為您確認保留。</p>
-                 <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="w-full bg-[#06C755] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 mb-4">
-                   <MessageCircle size={20} /> 加入 LINE 官方帳號
-                 </a>
-                 <button onClick={() => setSuccessData(null)} className="text-[13px] text-slate-400 underline">返回首頁</button>
-              </div>
+            <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 text-center">
+  <CheckCircle size={48} className="text-[#9aa486] mx-auto mb-4" />
+  <h2 className="text-2xl font-bold text-[#192039] mb-4">預約申請已送出！</h2>
+  <p className="text-slate-500 text-[14px] mb-6">請透過下方按鈕加入官方 LINE，我們將由專人為您確認保留。</p>
+
+{/* ================= BOOKING DETAILS 區塊開始 ================= */}
+  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 mb-6 text-left">
+    
+    <h3 className="text-[12px] font-bold text-slate-400 tracking-widest mb-4 border-b border-slate-200 pb-3">
+      BOOKING DETAILS
+    </h3>
+    
+    <div className="space-y-3">
+      
+      {/* 姓名標籤 */}
+      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+        <span className="text-slate-500 text-[15px]">預約姓名</span>
+        <span className="text-slate-800 font-bold text-[15px]">{successData?.name || '無'}</span>
+      </div>
+      
+      {/* 客戶屬性 - 藍色背景 */}
+      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+        <span className="text-slate-500 text-[15px]">客戶屬性</span>
+        <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-[15px] font-bold">
+          {successData?.customerType || '無'} 
+        </span>
+      </div>
+      
+      {/* 預約項目 */}
+      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+        <span className="text-slate-500 text-[15px]">預約項目</span>
+        <span className="text-slate-800 font-bold text-[15px] text-right max-w-[160px] truncate">
+          {successData?.service || '無'}
+        </span>
+      </div>
+      
+      {/* 指定顧問 */}
+      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+        <span className="text-slate-500 text-[15px]">指定顧問</span>
+        <span className="text-slate-800 font-bold text-[15px]">
+          {successData?.advisor || '無'}
+        </span>
+      </div>
+      
+      {/* 預約日期 - 綠色背景 */}
+      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+        <span className="text-slate-500 text-[15px]">預約日期</span>
+        <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md text-[15px] font-bold">
+          {successData?.date || '無'}
+        </span>
+      </div>
+      
+      {/* 預約時間 - 紫色背景 */}
+      <div className="flex justify-between items-center pb-1">
+        <span className="text-slate-500 text-[15px]">預約時間</span>
+        <span className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md text-[15px] font-bold">
+          {successData?.time || '無'}
+        </span>
+      </div>
+      
+    </div>
+  </div>
+  {/* ================= BOOKING DETAILS 區塊結束 ================= */}
+
+  {/* 原本的 LINE 按鈕和返回首頁保持不變 */}
+  <a href="[https://lin.ee/SaYoB3y](https://lin.ee/SaYoB3y)" target="_blank" rel="noopener noreferrer" className="w-full bg-[#06C755] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 mb-4">
+    <MessageCircle size={20} /> 加入 LINE 官方帳號
+  </a>
+  <button onClick={() => setSuccessData(null)} className="text-[13px] text-slate-400 underline">返回首頁</button>
+</div>
             ) : (
               <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 relative">
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#9aa486] to-[#e3b5a1]"></div>
