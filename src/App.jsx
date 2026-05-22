@@ -41,21 +41,41 @@ const serviceTypes = [
 
 // ✨ AI 指數退避重試機制
 async function callGeminiAPI(prompt, retries = 5, delay = 1000) {
-const apiKey = "AIzaSyDsIvhYf411TdEvPa62Abs4V_0X_WWpouA"; 
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+  const apiKey = "AIzaSyDsIvhYf411TdEvPa62Abs4V_0X_WWpouA"; 
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
   for (let i = 0; i < retries; i++) {
     try {
-      const response = await fetch(GEMINI_API_URL, {
-  method: 'POST',
-  headers: { 
-    'Content-Type': 'application/json',
-    'x-goog-api-key': apiKey // 
-  },
-  body: JSON.stringify({
-    contents: [{ parts: [{ text: prompt }] }]
-  })
-});
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey 
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API 錯誤 (${response.status}): ${JSON.stringify(errorData)}`);
+      }
+
+      const data = await response.json();
+      if (data.candidates && data.candidates[0].content.parts[0].text) {
+        return data.candidates[0].content.parts[0].text;
+      } else {
+        throw new Error('API 回傳內容格式錯誤');
+      }
+    } catch (e) {
+      console.error("API 失敗:", e.message);
+      if (i === retries - 1) throw e;
+      await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
+    }
+  }
+}
+
 
       const data = await response.json();
       if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
