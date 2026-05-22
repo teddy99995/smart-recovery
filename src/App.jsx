@@ -59,25 +59,6 @@ async function callGeminiAPI(prompt) {
   const data = await response.json();
   return data.candidates[0].content.parts[0].text;
 }
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`API 錯誤: ${response.status} - ${JSON.stringify(errorData)}`);
-  }
-
-  const data = await response.json();
-  return data.candidates[0].content.parts[0].text;
-}
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`API 錯誤: ${response.status} - ${JSON.stringify(errorData)}`);
-  }
-
-  const data = await response.json();
-  return data.candidates[0].content.parts[0].text;
-}
-
 const generateAllSlots = () => {
   const slots = [];
   for (let h = 10; h < 22; h++) {
