@@ -40,22 +40,31 @@ const serviceTypes = [
 ];
 
 // ✨ AI 指數退避重試機制
-  async function callGeminiAPI(prompt) {
+ async function callGeminiAPI(prompt) {
   const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
   console.log("偵錯：API Key 長度為:", apiKey ? apiKey.length : "無效/未定義");
+  
   const url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent";
-}
 
   const response = await fetch(url, {
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json', 
-      'x-goog-api-key': apiKey // 現在這裡讀得到值了
+      'x-goog-api-key': apiKey 
     },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }]
     })
   });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`API 錯誤: ${response.status} - ${JSON.stringify(errorData)}`);
+  }
+
+  const data = await response.json();
+  return data.candidates[0].content.parts[0].text;
+}
 
   if (!response.ok) {
     const errorData = await response.json();
