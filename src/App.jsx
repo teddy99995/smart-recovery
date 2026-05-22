@@ -41,7 +41,7 @@ const serviceTypes = [
 
 // ✨ AI 指數退避重試機制
  async function callGeminiAPI(prompt) {
-  const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   console.log("偵錯：API Key 長度為:", apiKey ? apiKey.length : "無效/未定義");
   
   const url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent";
