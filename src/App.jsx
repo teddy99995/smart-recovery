@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';import { Calendar, User, Clock, Activity, Trash, PlusCircle, CheckCircle, AlertCircle, MessageCircle, MessageSquare, Clipboard, Lock, Users, LogOut, Key, Copy, Plus, List, Sun, Moon, Settings, Phone, Check, Filter, BarChart, Star, Crown, Bot, Sparkles, RefreshCw, DollarSign } from 'lucide-react';
-
+import React, { useState, useEffect, useMemo } from 'react';
+import { Calendar, User, Clock, Activity, Trash, PlusCircle, CheckCircle, AlertCircle, MessageCircle, MessageSquare, Clipboard, Lock, Users, LogOut, Key, Copy, Plus, List, Sun, Moon, Settings, Phone, Check, Filter, BarChart, Star, Crown, Bot, Sparkles, RefreshCw, DollarSign } from 'lucide-react';
 
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, writeBatch } from "firebase/firestore";
@@ -105,6 +105,9 @@ const getDayLabel = (dateStr) => {
   return { date: `${d.getMonth() + 1}/${d.getDate()}`, weekday: days[d.getDay()] };
 };
 
+// ==============================================
+// 🚀 核心 App 元件開始
+// ==============================================
 export default function App() {
   const [appointments, setAppointments] = useState([]);
   const [schedules, setSchedules] = useState([]); 
@@ -112,6 +115,18 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null); 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginForm, setLoginForm] = useState({ account: 'ted', password: '' });
+
+  // 補齊遺失的狀態定義
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleAdvisorId, setScheduleAdvisorId] = useState('');
+  const [selectedSlots, setSelectedSlots] = useState([]);
+  const [additionalDates, setAdditionalDates] = useState([]);
+  const [rangeStartDate, setRangeStartDate] = useState('');
+  const [rangeEndDate, setRangeEndDate] = useState('');
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+  const [apptFilter, setApptFilter] = useState('today');
+  const [adminViewAdvisor, setAdminViewAdvisor] = useState('all');
+  const [copiedPhoneId, setCopiedPhoneId] = useState(null);
 
   const getSavedCustomer = () => {
     try { const saved = localStorage.getItem('smartRecoveryCustomer'); return saved ? JSON.parse(saved) : { name: '', phone: '' }; } 
@@ -129,25 +144,54 @@ export default function App() {
 
   // 後台狀態管理
   const [adminTab, setAdminTab] = useState('appointments'); 
-  const [apptFilter, setApptFilter] = useState('today');
-  const [adminViewAdvisor, setAdminViewAdvisor] = useState('all');
 
-  const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
-  const [scheduleAdvisorId, setScheduleAdvisorId] = useState('');
-  const [selectedSlots, setSelectedSlots] = useState([]);
-  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
-  const [additionalDates, setAdditionalDates] = useState([]);
-  const [newExtraDate, setNewExtraDate] = useState('');
-  const [rangeStartDate, setRangeStartDate] = useState('');
-  const [rangeEndDate, setRangeEndDate] = useState('');
-  const [copiedPhoneId, setCopiedPhoneId] = useState(null);
+  // === 💰 櫃檯收銀與獨立分頁狀態 ===
+  const [showPOS, setShowPOS] = useState(false);
+  const [calcPrice, setCalcPrice] = useState('');
+  const [calcDiscount, setCalcDiscount] = useState('10');
+  const [calcAdvisor, setCalcAdvisor] = useState(''); 
+  const [revenueRecords, setRevenueRecords] = useState([]); 
+
+  // 即時計算應收金額
+  const calcFinalAmount = Math.round((Number(calcPrice) || 0) * (Number(calcDiscount) || 10) / 10);
+
+  // 按下確認收款
+  const handleConfirmPayment = () => {
+    if (!calcPrice || Number(calcPrice) <= 0) return alert('請先輸入有效的服務價格！');
+    if (!calcAdvisor) return alert('⚠️ 請先選擇「本次收款人」是誰，才能結帳喔！');
+    
+    const newRecord = {
+      id: Date.now(),
+      date: new Date().toISOString(),
+      originalPrice: Number(calcPrice),
+      discount: Number(calcDiscount),
+      finalAmount: calcFinalAmount,
+      advisorId: calcAdvisor 
+    };
+    
+    setRevenueRecords(prev => [...prev, newRecord]); 
+    setCalcPrice(''); 
+    setCalcDiscount('10'); 
+    
+    const advisorName = TEAM_MEMBERS.find(m => m.id === calcAdvisor)?.name || '未知';
+    alert(`✅ 收款成功！已入帳 $${calcFinalAmount} 元\n經手人：${advisorName}`);
+  };
+
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const monthlyTotalRevenue = revenueRecords
+    .filter(record => {
+      const d = new Date(record.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    })
+    .reduce((sum, record) => sum + record.finalAmount, 0);
 
   // 用來修改預約狀態的函式（完成或取消）
-const handleUpdateApptStatus = (id, newStatus) => {
-  setAppointments(prev => prev.map(appt => 
-    appt.id === id ? { ...appt, status: newStatus } : appt
-  ));
-};
+  const handleUpdateApptStatus = (id, newStatus) => {
+    setAppointments(prev => prev.map(appt => 
+      appt.id === id ? { ...appt, status: newStatus } : appt
+    ));
+  };
 
   // 📊 老闆營業營收看板狀態
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
@@ -218,9 +262,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
     setCurrentUser(null); setAdminTab('appointments'); setAdditionalDates([]); setRangeStartDate(''); setRangeEndDate('');
   };
 
-  // ----------------------------------------------------
-  // ✨ AI 功能 1：客端推薦與自動套用
-  // ----------------------------------------------------
   const handleAIGetRecommendation = async () => {
     if (!aiInput.trim()) return;
     setLoadingAi(true);
@@ -249,9 +290,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
     }
   };
 
-  // ----------------------------------------------------
-  // ✨ AI 功能 2：顧問端生成課後專屬建議
-  // ----------------------------------------------------
   const generatePostSessionAdvice = async (apptId, customerName, service, note) => {
     setAdviceMap(prev => ({ ...prev, [apptId]: '✨ 正在為客人量身打造課後保養建議...' }));
     const prompt = `您是專業運動恢復顧問。您剛為客人「${customerName}」完成了「${service}」服務。客人備註：「${note || '無'}」。
@@ -271,9 +309,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
     try { document.execCommand('copy'); alert('✅ 已複製！可直接貼上至 LINE 傳給客人'); } catch (err) {} document.body.removeChild(textArea);
   };
 
-  // ----------------------------------------------------
-  // 📅 排班與預約邏輯
-  // ----------------------------------------------------
   useEffect(() => {
     if (scheduleAdvisorId && scheduleDate) {
       const existing = schedules.find(s => s.advisorId === scheduleAdvisorId && s.date === scheduleDate);
@@ -294,7 +329,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
     setAdditionalDates(prev => prev.includes(dateStr) ? prev.filter(d => d !== dateStr) : [...prev, dateStr]);
   };
 
-  // 🚀 排班神器：區間全選
   const handleBatchAddRange = () => {
     if (!rangeStartDate || !rangeEndDate) { alert("請填寫開始與結束日期！"); return; }
     if (new Date(rangeEndDate) < new Date(rangeStartDate)) { alert("結束日期不能早於開始日期！"); return; }
@@ -327,7 +361,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
     setIsSavingSchedule(false);
   };
 
-  // 🗑️ 刪除整日排班
   const handleDeleteFullDay = async (schedId, sDate) => {
     if(window.confirm(`確定要刪除 ${sDate} 的所有排班嗎？\n(若有客人已預約該日，客人的預約紀錄仍會保留)`)) {
       try {
@@ -337,20 +370,16 @@ const handleUpdateApptStatus = (id, newStatus) => {
     }
   };
 
-  // 📱 iPhone 樣式開關 (限制僅有執行長可操作，並加入樂觀更新)
   const handleToggleAdvisor = async (advisorId) => {
     if (currentUser?.role !== 'admin') {
       alert('權限不足：只有執行長 (Ted) 能夠更改顧問前台顯示狀態！');
       return;
     }
-
     const newActiveIds = activeAdvisors.includes(advisorId)
       ? activeAdvisors.filter(id => id !== advisorId)
       : [...activeAdvisors, advisorId];
     
-    // 樂觀更新：讓開關瞬間滑動，不需要等待網路
     setActiveAdvisors(newActiveIds);
-
     try {
       await setDoc(doc(db, "settings", "teamConfig"), { activeIds: newActiveIds }, { merge: true });
     } catch (error) { 
@@ -358,7 +387,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
     }
   };
 
-  // 🗓️ 我的班表總覽 (未來排班)
   const advisorFutureSchedules = useMemo(() => {
     if (!scheduleAdvisorId) return [];
     const today = new Date().toISOString().split('T')[0];
@@ -487,9 +515,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
   };
   const displayAppointments = getFilteredAppointments();
 
-  // ==============================================
-  // 📊 👑 老闆專屬營業營收看板計算
-  // ==============================================
   const analyticsData = useMemo(() => {
     if (!currentUser || currentUser.role !== 'admin') return null;
 
@@ -531,12 +556,22 @@ const handleUpdateApptStatus = (id, newStatus) => {
     );
   };
 
+  // ============================================
+  // 🔥 開始渲染 UI 
+  // ============================================
   return (
     <div className="min-h-screen bg-[#192039] p-4 md:p-8 font-sans text-slate-800 selection:bg-[#e3b5a1] selection:text-[#192039] flex flex-col relative">
       
       {/* 左上角隱藏登入按鈕 */}
       <button onClick={() => !currentUser ? setShowLoginModal(true) : handleLogout()} className="fixed top-4 left-4 z-50 p-2.5 bg-[#12182c]/80 backdrop-blur-md rounded-full text-white/50 hover:text-[#e3b5a1] border border-white/10 transition-all shadow-md" title={currentUser ? "登出" : "管理員入口"}>
         <Settings size={20} />
+      </button>
+      
+      <button 
+        onClick={() => setShowPOS(true)}
+        className="fixed top-4 left-16 z-50 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-full shadow-md flex items-center gap-2 transition-all active:scale-95"
+      >
+        💰 收銀機
       </button>
 
       {/* 右下角懸浮 LINE */}
@@ -660,8 +695,7 @@ const handleUpdateApptStatus = (id, newStatus) => {
   </div>
   {/* ================= BOOKING DETAILS 區塊結束 ================= */}
 
-  {/* 原本的 LINE 按鈕和返回首頁保持不變 */}
-  <a href="[https://lin.ee/SaYoB3y](https://lin.ee/SaYoB3y)" target="_blank" rel="noopener noreferrer" className="w-full bg-[#06C755] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 mb-4">
+  <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="w-full bg-[#06C755] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 mb-4">
     <MessageCircle size={20} /> 加入 LINE 官方帳號
   </a>
   <button onClick={() => setSuccessData(null)} className="text-[13px] text-slate-400 underline">返回首頁</button>
@@ -724,6 +758,7 @@ const handleUpdateApptStatus = (id, newStatus) => {
               <div className="flex flex-wrap bg-[#232d4e] p-1 rounded-xl gap-1">
                 <button onClick={() => setAdminTab('appointments')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 ${adminTab === 'appointments' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300'}`}><Clipboard size={16} /> 戰情室</button>
                 <button onClick={() => setAdminTab('schedule')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 ${adminTab === 'schedule' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300'}`}><Calendar size={16} /> 排班</button>
+                
                 {/* 👑 老闆專屬標籤：只有 Ted 登入才會顯示 */}
                 {currentUser.role === 'admin' && (
                   <button onClick={() => setAdminTab('analytics')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 ${adminTab === 'analytics' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300'}`}><BarChart size={16} /> 營業營收</button>
@@ -740,11 +775,9 @@ const handleUpdateApptStatus = (id, newStatus) => {
                       <h3 className="text-xl font-bold flex items-center gap-2"><BarChart className="text-indigo-600" /> 營業營收儀表板</h3>
                    </div>
                    <div className="flex gap-4 items-center bg-white p-4 rounded-2xl shadow-sm border">
-                     {/* 動態歷史月份選單 */}
                      <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="p-2 border rounded-lg font-bold">
                        {availableMonths.map(m => <option key={m} value={m}>{m} 月份</option>)}
                      </select>
-                     {/* 顧問多選過濾 (包含老闆) */}
                      <div className="flex gap-2 flex-wrap">
                        {TEAM_MEMBERS.map(m => (
                          <button key={m.id} onClick={() => setSelectedAnalyticsAdvisors(prev => prev.includes(m.id) ? prev.filter(x => x !== m.id) : [...prev, m.id])} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border border-transparent ${selectedAnalyticsAdvisors.includes(m.id) ? 'bg-[#192039] text-[#e3b5a1] border-[#192039] shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}>{m.name}</button>
@@ -752,7 +785,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
                      </div>
                    </div>
                    
-                   {/* 數據看板渲染 */}
                    {analyticsData && (
                      <>
                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -840,7 +872,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
                             <a href={`tel:${appt.phone}`} className="text-xs bg-green-50 border border-green-200 text-green-600 hover:bg-green-600 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all"><Phone size={12}/> 撥打</a>
                             {apptFilter !== 'past' && <button onClick={() => handleDelete(appt)} className="text-xs bg-rose-50 border border-rose-200 text-rose-500 hover:bg-rose-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all"><Trash size={12}/> 取消</button>}
                           </div>
-                          {/* ✨ AI 課後建議按鈕 (僅在歷史紀錄出現) */}
                           {apptFilter === 'past' && (
                             <button onClick={() => generatePostSessionAdvice(appt.id, appt.name, appt.serviceType, appt.needs)} className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm">
                                <Sparkles size={12}/> ✨ 產生課後溫馨建議
@@ -848,7 +879,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
                           )}
                         </div>
                         
-                        {/* 顯示 AI 課後建議結果 */}
                         {adviceMap[appt.id] && (
                           <div className="mt-3 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl relative group animate-in fade-in">
                              <p className="text-[13px] text-indigo-900 font-medium whitespace-pre-line leading-relaxed pb-6">{adviceMap[appt.id]}</p>
@@ -863,7 +893,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
                 </div>
               )}
               
-              {/* 預約管理與修改清單 UI */}
 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-6">
   <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">📅 預約訂單管理</h3>
   
@@ -874,14 +903,12 @@ const handleUpdateApptStatus = (id, newStatus) => {
       appointments.map(appt => (
         <div key={appt.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-[#9aa486] transition-colors">
           
-          {/* 左側：客戶與預約資訊 */}
           <div className="mb-3 sm:mb-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="font-bold text-[#192039]">{appt.date}</span>
               <span className="text-sm bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium">
                 {Array.isArray(appt.timeSlots) ? appt.timeSlots.join(', ') : appt.timeSlots}
               </span>
-              {/* 狀態標籤 */}
               <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                 appt.status === '已取消' ? 'bg-red-100 text-red-600' : 
                 appt.status === '已完成' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
@@ -895,7 +922,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
             {appt.needs && <p className="text-xs text-slate-500 mt-1">備註: {appt.needs}</p>}
           </div>
 
-          {/* 右側：操作按鈕 */}
           <div className="flex gap-2">
             <button 
               onClick={() => handleUpdateApptStatus(appt.id, '已完成')}
@@ -920,10 +946,8 @@ const handleUpdateApptStatus = (id, newStatus) => {
 </div>
 
               {adminTab === 'schedule' && (
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                  {/* 左側：排班控制台 */}
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mt-6">
                   <div className="xl:col-span-7 bg-white p-6 rounded-2xl shadow-sm border h-full flex flex-col">
-                     {/* 📱 iPhone 樣式顧問開關 (僅老闆可見可點，包含樂觀更新) */}
                      {currentUser.role === 'admin' && (
                        <div className="mb-6 pb-6 border-b border-slate-100">
                          <h3 className="text-[15px] font-bold mb-4 flex items-center gap-2 text-slate-800"><Users size={16} className="text-[#9aa486]" /> 顧問前台顯示狀態 (僅執行長可控)</h3>
@@ -956,7 +980,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
                      <div className="mt-auto border-t border-slate-100 pt-6">
                         <h4 className="font-bold text-[14px] text-slate-700 mb-3 flex items-center gap-1.5"><Copy size={16} className="text-[#e3b5a1]" /> 快速同步多日排班 (區間與點選)</h4>
                         
-                        {/* ⚡ 區間匯入神器 */}
                         <div className="flex flex-col sm:flex-row gap-2 mb-4">
                            <div className="flex flex-1 gap-2">
                              <input type="date" value={rangeStartDate} onChange={e => setRangeStartDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-bold focus:ring-2 focus:ring-[#e3b5a1] outline-none w-full" placeholder="開始" />
@@ -967,7 +990,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
                            </button>
                         </div>
 
-                        {/* ⚡ 28天極速點選神器 */}
                         <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mb-4">
                            {next28Days.map(dateStr => {
                               const { date, weekday } = getDayLabel(dateStr);
@@ -981,7 +1003,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
                            })}
                         </div>
                         
-                        {/* 顯示已選取的同步日期清單 */}
                         {additionalDates.length > 0 && (
                           <div className="flex flex-wrap gap-2 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
                             <span className="text-[12px] text-slate-500 font-bold w-full flex justify-between items-center mb-1">
@@ -1002,7 +1023,6 @@ const handleUpdateApptStatus = (id, newStatus) => {
                      </div>
                   </div>
 
-                  {/* 右側：我的班表總覽 */}
                   <div className="xl:col-span-5 bg-slate-100/80 rounded-2xl border border-slate-200 p-5 shadow-inner flex flex-col h-[750px]">
                      <div className="flex items-center gap-2 mb-5 border-b border-slate-200 pb-4">
                         <List size={18} className="text-[#8e6856]" />
@@ -1035,11 +1055,15 @@ const handleUpdateApptStatus = (id, newStatus) => {
                   </div>
                 </div>
               )}
+              
+              {/* 專屬老闆的老闆面板元件 */}
+              {currentUser?.role === 'admin' && adminTab === 'analytics' && (
+                  <BossDashboard data={appointments} />
+              )}
             </div>
           </div>
         )}
 
-        {/* 底部 IG SVG */}
         {!currentUser && (
           <div className="flex justify-center pb-8 pt-4 relative z-10">
              <a href="https://www.instagram.com/_smart.recovery?igsh=MWxocGJqanEwa2Rhaw==" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-white/50 hover:text-white transition-all text-sm font-bold bg-white/5 px-6 py-3 rounded-full border border-white/10 hover:bg-white/10 shadow-sm">
@@ -1052,98 +1076,129 @@ const handleUpdateApptStatus = (id, newStatus) => {
              </a>
           </div>
         )}
-        {/* === 專屬 Ted 執行長的後台區塊 === */}
-{currentUser?.role === 'admin' && (
-  <div className="mt-8 border-t-2 border-slate-200 pt-8">
-    
-    {/* 1. 預約訂單管理清單 */}
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-6">
-      <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">📅 客戶預約訂單管理與修改</h3>
-      
-      <div className="space-y-3">
-        {appointments && appointments.length === 0 ? (
-          <p className="text-slate-500 text-center py-4">目前尚無任何預約記錄</p>
-        ) : (
-          appointments?.map(appt => (
-            <div key={appt.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-[#9aa486] transition-colors">
-              <div className="mb-3 sm:mb-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-bold text-[#192039]">{appt.date}</span>
-                  <span className="text-sm bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium">
-                    {Array.isArray(appt.timeSlots) ? appt.timeSlots.join(', ') : appt.timeSlots}
-                  </span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                    appt.status === '已取消' ? 'bg-red-100 text-red-600' : 
-                    appt.status === '已完成' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
-                  }`}>
-                    {appt.status || '已預約'}
-                  </span>
-                </div>
-                <p className="text-sm font-medium text-slate-700">
-                  {appt.name} ({appt.phone}) - <span className="text-[#9aa486]">{appt.serviceType}</span>
-                </p>
-              </div>
+      </div>
 
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => handleUpdateApptStatus(appt.id, '已完成')}
-                  disabled={appt.status === '已完成' || appt.status === '已取消'}
-                  className="px-3 py-1.5 text-sm font-bold rounded-lg bg-[#9aa486] text-white hover:bg-[#868f74] disabled:opacity-50"
-                >✓ 完成</button>
-                <button 
-                  onClick={() => handleUpdateApptStatus(appt.id, '已取消')}
-                  disabled={appt.status === '已取消'}
-                  className="px-3 py-1.5 text-sm font-bold rounded-lg bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50"
-                >✕ 取消</button>
+      {/* === 💰 獨立全螢幕 POS 收銀頁面 === */}
+      {showPOS && currentUser && (
+        <div className="fixed inset-0 bg-slate-100 z-50 overflow-y-auto p-4 sm:p-8 flex flex-col">
+          <div className="max-w-6xl mx-auto w-full flex justify-between items-center mb-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              📱 智理運動恢復 專屬收銀台
+            </h2>
+            <button 
+              onClick={() => setShowPOS(false)}
+              className="px-6 py-2.5 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-md"
+            >
+              🚪 返回主系統
+            </button>
+          </div>
+
+          <div className="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
+            <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+              <h4 className="text-xl font-bold text-slate-700 mb-6 border-b pb-4">結帳計算機</h4>
+              <div className="space-y-6 flex-1">
+                <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
+                  <label className="block text-sm font-bold text-amber-800 mb-2">🧑‍⚕️ 本次收款人 (必選)</label>
+                  <select value={calcAdvisor} onChange={(e) => setCalcAdvisor(e.target.value)} className="w-full text-lg p-3 border border-amber-300 rounded-lg font-bold text-slate-800 focus:ring-4 focus:ring-amber-200 outline-none transition-all bg-white">
+                    <option value="" disabled>請選擇是誰收的錢...</option>
+                    {TEAM_MEMBERS.map(member => (
+                      <option key={member.id} value={member.id}>{member.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-600 mb-2">服務原價 (元)</label>
+                  <input type="number" value={calcPrice} onChange={(e) => setCalcPrice(e.target.value)} className="w-full text-3xl p-4 border border-slate-300 rounded-xl text-right font-bold text-slate-800 focus:ring-4 focus:ring-[#9aa486]/30 outline-none transition-all" placeholder="輸入金額..." />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-600 mb-2">折扣 (10 代表不打折，8.5 代表 85折)</label>
+                  <div className="flex items-center gap-3">
+                    <input type="number" step="0.1" value={calcDiscount} onChange={(e) => setCalcDiscount(e.target.value)} className="w-full text-2xl p-4 border border-slate-300 rounded-xl text-right font-bold text-slate-800 focus:ring-4 focus:ring-[#9aa486]/30 outline-none transition-all" />
+                    <span className="text-2xl font-bold text-slate-600 whitespace-nowrap">折</span>
+                  </div>
+                </div>
+              </div>
+              <div className="pt-6 border-t-2 border-slate-100 mt-6">
+                <div className="flex justify-between items-end mb-6 bg-slate-50 p-4 rounded-xl">
+                  <span className="text-slate-600 font-bold text-xl">應收總額：</span>
+                  <span className="text-5xl font-bold text-rose-600">${calcFinalAmount.toLocaleString()}</span>
+                </div>
+                <button onClick={handleConfirmPayment} className="w-full bg-[#9aa486] hover:bg-[#868f74] text-white text-3xl font-bold py-6 rounded-2xl shadow-lg transition-all active:scale-95 flex justify-center items-center gap-3">
+                  💵 確認收款
+                </button>
               </div>
             </div>
-          ))
-        )}
-      </div>
-    </div>
 
-    {/* 2. 老闆分析面板 */}
-    <BossDashboard data={appointments} />
-    
-  </div>
-)}
-      </div>
+            <div className="bg-slate-800 text-white p-8 rounded-2xl shadow-lg flex flex-col">
+              <h4 className="text-xl font-bold text-slate-300 mb-4">本月累積營收 ({currentMonth + 1}月)</h4>
+              <div className="text-7xl font-bold text-emerald-400 mb-10 drop-shadow-md pb-8 border-b border-slate-600">
+                ${monthlyTotalRevenue.toLocaleString()}
+              </div>
+              <h4 className="text-md font-bold text-slate-400 mb-4">最近收款紀錄</h4>
+              <div className="space-y-4 overflow-y-auto flex-1 pr-2">
+                {revenueRecords.length === 0 ? (
+                  <div className="text-slate-500 text-center py-10">尚無結帳紀錄，趕快去接客吧！</div>
+                ) : (
+                  [...revenueRecords].reverse().map(record => (
+                    <div key={record.id} className="flex justify-between items-center bg-slate-700/50 p-4 rounded-xl border border-slate-600/50 hover:bg-slate-700 transition-colors">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-slate-600 text-slate-200 text-xs px-2 py-1 rounded-md font-bold">
+                            {TEAM_MEMBERS.find(m => m.id === record.advisorId)?.name || '未知'}
+                          </span>
+                          <span className="text-slate-300 font-medium text-sm">
+                            {new Date(record.date).toLocaleDateString('zh-TW')} {new Date(record.date).toLocaleTimeString('zh-TW', {hour: '2-digit', minute:'2-digit'})}
+                          </span>
+                        </div>
+                        <span className="text-sm text-slate-400">
+                          原價 ${record.originalPrice} ({record.discount}折)
+                        </span>
+                      </div>
+                      <span className="font-bold text-emerald-300 text-2xl">+${record.finalAmount}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="w-full flex justify-between items-center px-4 pb-24 pt-4 text-xs text-white/30 relative z-10">
         <p className="mx-auto">© 2026 Smart Recovery</p>
       </footer>
+
     </div>
   );
-  }
+}
+// ==============================================
+// 🚀 核心 App 元件結束
+// ==============================================
 
-// 🚀 新增功能區：POS 系統數據分析
+
+// ==========================================
+// 🚀 輔助函式區：POS 系統數據分析元件
 // ==========================================
 
-  const getBossAnalytics = (records) => {
+export const getBossAnalytics = (records) => {
   if (!records || !Array.isArray(records)) return {};
 
   const stats = records.reduce((acc, curr) => {
-    // 嚴格檢查日期
     if (!curr || !curr.date) return acc;
     const dateObj = new Date(curr.date);
     if (isNaN(dateObj.getTime())) return acc;
 
     const month = dateObj.getMonth() + 1;
 
-    // 1. 初始化：多加一個 cancelled: 0 來記數
     if (!acc[month]) {
       acc[month] = { total: 0, new: 0, return: 0, cancelled: 0 };
     }
 
-    // 2. 判斷取消邏輯 
-    // 💡 注意：這裡假設你的資料中有一個 status 欄位標記為 '已取消'。
-    // 如果你的欄位名稱不同（例如 isCancelled: true），請修改這一行！
     if (curr.status === '已取消' || curr.status === '取消') {
       acc[month].cancelled += 1;
-      return acc; // 已經取消的單，就不算進總預約數和新舊客了
+      return acc; 
     }
 
-    // --- 正常的訂單計算 ---
     acc[month].total += 1;
 
     if (curr.customerType === '初次預約') {
@@ -1156,13 +1211,13 @@ const handleUpdateApptStatus = (id, newStatus) => {
   }, {});
   return stats;
 };
-const BossDashboard = ({ data }) => {
+
+export const BossDashboard = ({ data }) => {
   if (!data || !Array.isArray(data)) return null;
 
-  // 💡 就算沒有資料，也會顯示面板框架，告訴老闆目前沒訂單
   if (data.length === 0) {
     return (
-      <div className="boss-dashboard text-white" style={{ marginTop: '20px', padding: '20px', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff' }}>
+      <div className="boss-dashboard text-white" style={{ marginTop: '20px', padding: '20px', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '16px', color: '#fff' }}>老闆數據分析面板 📊</h2>
         <p style={{ color: '#cbd5e1' }}>目前尚無預約訂單資料可供分析。</p>
       </div>
@@ -1174,8 +1229,8 @@ const BossDashboard = ({ data }) => {
     if (!stats || typeof stats !== 'object') return null;
 
     return (
-      <div className="boss-dashboard text-white" style={{ marginTop: '20px', padding: '20px', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '16px', color: '#fff' }}>老闆數據分析面板 📊</h2>
+      <div className="boss-dashboard text-white" style={{ marginTop: '20px', padding: '20px', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '16px', color: '#501b4a' }}>老闆數據分析面板 📊</h2>
         
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
           {Object.keys(stats).map(month => (
