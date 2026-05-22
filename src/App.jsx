@@ -41,13 +41,19 @@ const serviceTypes = [
 
 // ✨ AI 指數退避重試機制
   async function callGeminiAPI(prompt) {
-  const apiKey = "AIzaSyAw7uEx-GNCMHHUiBJmk1YOVlQU5v0v-IM";
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+  // 這裡正確宣告變數並指派環境變數的值
+  const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
+  const url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent";
 
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    headers: { 
+      'Content-Type': 'application/json', 
+      'x-goog-api-key': apiKey // 現在這裡讀得到值了
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }]
+    })
   });
 
   if (!response.ok) {
