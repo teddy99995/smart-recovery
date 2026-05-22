@@ -63,15 +63,7 @@ const serviceTypes = [
   }
 
   const data = await response.json();
-  return data.candidates[0].content.parts[0].text;
-}
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`API 錯誤: ${response.status} - ${JSON.stringify(errorData)}`);
-  }
-
-  const data = await response.json();
+  // 這是正確的 return 位置，因為它被包裹在上方定義的 async function {} 之中
   return data.candidates[0].content.parts[0].text;
 }
 
