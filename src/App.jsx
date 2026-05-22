@@ -42,15 +42,21 @@ const serviceTypes = [
 // ✨ AI 指數退避重試機制
 async function callGeminiAPI(prompt, retries = 5, delay = 1000) {
 const apiKey = "AIzaSyDsIvhYf411TdEvPa62Abs4V_0X_WWpouA"; 
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(GEMINI_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      });
+  method: 'POST',
+  headers: { 
+    'Content-Type': 'application/json',
+    'x-goog-api-key': apiKey // 
+  },
+  body: JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }]
+  })
+});
+
       const data = await response.json();
       if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
         return data.candidates[0].content.parts[0].text;
