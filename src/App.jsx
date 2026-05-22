@@ -38,26 +38,44 @@ const serviceTypes = [
    "身體大保養","其他（詳情請打在備註）"
 ];
 
-// ✨ AI 指數退避重試機制
-async function callGeminiAPI(prompt) {
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
+// ✨ AI 指數退避重試機制 (Exponential Backoff)
+async function callGeminiAPI(prompt, retries = 3, delay = 1000) {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }]
-    })
-  });
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`API 錯誤: ${response.status} - ${JSON.stringify(errorData)}`);
+      // 如果成功，直接回傳結果
+      if (response.ok) {
+        const data = await response.json();
+        return data.candidates[0].content.parts[0].text;
+      }
+
+      if (response.status === 503) {
+        console.warn(`[API 忙碌] 準備進行第 ${i + 1} 次重試...`);
+        if (i === retries - 1) throw new Error("Google 伺服器持續忙碌中，請稍後再試。");
+
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; 
+        continue; 
+      const errorData = await response.json();
+      throw new Error(`API 錯誤: ${response.status} - ${JSON.stringify(errorData)}`);
+
+    } catch (error) {
+      if (i === retries - 1) {
+        console.error("AI 顧問連線失敗:", error);
+        throw error;
+      }
+    }
   }
+}
 
-  const data = await response.json();
-  return data.candidates[0].content.parts[0].text;
 }
 const generateAllSlots = () => {
   const slots = [];
