@@ -40,7 +40,7 @@ const serviceTypes = [
 ];
 
 // ✨ AI 指數退避重試機制
-async function callGeminiAPI(prompt, retries = 5, delay = 1000) {
+  async function callGeminiAPI(prompt, retries = 5, delay = 1000) {
   const apiKey = "AIzaSyDsIvhYf411TdEvPa62Abs4V_0X_WWpouA";
   const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
@@ -74,19 +74,9 @@ async function callGeminiAPI(prompt, retries = 5, delay = 1000) {
       await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
     }
   }
-}
-const data = await response.json();
-      if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-        return data.candidates[0].content.parts[0].text;
-      }
-      throw new Error('API 無效回應');
-    } catch (e) {
-      if (i === retries - 1) throw e;
-      await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
-    }
-  }
   return "抱歉，系統過於忙碌，請稍後再試。";
 }
+
 
 const generateAllSlots = () => {
   const slots = [];
