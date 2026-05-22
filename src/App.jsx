@@ -41,17 +41,34 @@ const serviceTypes = [
 
 // ✨ AI 指數退避重試機制
 async function callGeminiAPI(prompt) {
+  // 1. 確保讀取到環境變數
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   console.log("偵錯：API Key 長度為:", apiKey ? apiKey.length : "無效/未定義");
+  
+  // 2. 絕對路徑，防止被誤判為相對目錄
   const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }]
-    })
-  });
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }]
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`API 錯誤: ${response.status} - ${JSON.stringify(errorData)}`);
+    }
+
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text;
+  } catch (error) {
+    console.error("呼叫 API 失敗:", error);
+    throw error;
+  }
+}
 
   if (!response.ok) {
     const errorData = await response.json();
