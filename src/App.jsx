@@ -35,13 +35,13 @@ const TEAM_MEMBERS = [
 const serviceTypes = [
   "運動後疲勞恢復", "深層肌肉與筋膜放鬆", "動作控制與體態調整",
   "銀髮族活動力促進", "專項運動表現優化", "日常肌力與體能訓練",
-  "其他（詳情請打在備註）"
+   "身體大保養","其他（詳情請打在備註）"
 ];
 
 // ✨ AI 指數退避重試機制
 async function callGeminiAPI(prompt) {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
 
   const response = await fetch(url, {
     method: 'POST',
