@@ -32,42 +32,32 @@ const TEAM_MEMBERS = [
   { id: 'jerry', name: 'Jerry (恢復顧問)', pwd: 'jerry123', role: 'advisor' }, 
   { id: 'amy', name: 'Amy (恢復顧問)', pwd: 'amy123', role: 'advisor' }
 ];
-
 const serviceTypes = [
   "運動後疲勞恢復", "深層肌肉與筋膜放鬆", "動作控制與體態調整",
   "銀髮族活動力促進", "專項運動表現優化", "日常肌力與體能訓練",
-  "其他 (詳情請打在備註)"
+  "其他（詳情請打在備註）"
 ];
 
 // ✨ AI 指數退避重試機制
 async function callGeminiAPI(prompt) {
-  // 1. 確保讀取到環境變數
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  console.log("偵錯：API Key 長度為:", apiKey ? apiKey.length : "無效/未定義");
-  
-  // 2. 絕對路徑，防止被誤判為相對目錄
   const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }]
-      })
-    });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }]
+    })
+  });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`API 錯誤: ${response.status} - ${JSON.stringify(errorData)}`);
-    }
-
-    const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
-  } catch (error) {
-    console.error("呼叫 API 失敗:", error);
-    throw error;
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`API 錯誤: ${response.status} - ${JSON.stringify(errorData)}`);
   }
+
+  const data = await response.json();
+  return data.candidates[0].content.parts[0].text;
 }
 
   if (!response.ok) {
@@ -85,7 +75,6 @@ async function callGeminiAPI(prompt) {
   }
 
   const data = await response.json();
-  // 這是正確的 return 位置，因為它被包裹在上方定義的 async function {} 之中
   return data.candidates[0].content.parts[0].text;
 }
 
