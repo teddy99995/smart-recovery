@@ -50,20 +50,18 @@ async function callGeminiAPI(prompt, retries = 3, delay = 1000) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
       });
-
-      // 如果成功，直接回傳結果
       if (response.ok) {
         const data = await response.json();
         return data.candidates[0].content.parts[0].text;
       }
-
       if (response.status === 503) {
         console.warn(`[API 忙碌] 準備進行第 ${i + 1} 次重試...`);
         if (i === retries - 1) throw new Error("Google 伺服器持續忙碌中，請稍後再試。");
-
+        
         await new Promise(resolve => setTimeout(resolve, delay));
         delay *= 2; 
-        continue; 
+        continue;
+      } 
       const errorData = await response.json();
       throw new Error(`API 錯誤: ${response.status} - ${JSON.stringify(errorData)}`);
 
@@ -74,8 +72,6 @@ async function callGeminiAPI(prompt, retries = 3, delay = 1000) {
       }
     }
   }
-}
-
 }
 const generateAllSlots = () => {
   const slots = [];
