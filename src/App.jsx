@@ -32,38 +32,47 @@ const TEAM_MEMBERS = [
   { id: 'jerry', name: 'Jerry (恢復顧問)', pwd: 'jerry123', role: 'advisor' }, 
   { id: 'amy', name: 'Amy (恢復顧問)', pwd: 'amy123', role: 'advisor' }
 ];
-
 const serviceTypes = [
   "運動後疲勞恢復", "深層肌肉與筋膜放鬆", "動作控制與體態調整",
   "銀髮族活動力促進", "專項運動表現優化", "日常肌力與體能訓練",
-  "其他 (詳情請打在備註)"
+   "身體大保養","其他（詳情請打在備註）"
 ];
 
-// ✨ AI 指數退避重試機制
-async function callGeminiAPI(prompt, retries = 5, delay = 1000) {
-  const apiKey = ""; 
-  const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+// ✨ AI 指數退避重試機制 (Exponential Backoff)
+async function callGeminiAPI(prompt, retries = 3, delay = 1000) {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
 
   for (let i = 0; i < retries; i++) {
     try {
-      const response = await fetch(GEMINI_API_URL, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
       });
-      const data = await response.json();
-      if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+      if (response.ok) {
+        const data = await response.json();
         return data.candidates[0].content.parts[0].text;
       }
-      throw new Error('API 無效回應');
-    } catch (e) {
-      if (i === retries - 1) throw e;
-      await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
+      if (response.status === 503) {
+        console.warn(`[API 忙碌] 準備進行第 ${i + 1} 次重試...`);
+        if (i === retries - 1) throw new Error("Google 伺服器持續忙碌中，請稍後再試。");
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; 
+        continue;
+      } 
+      const errorData = await response.json();
+      throw new Error(`API 錯誤: ${response.status} - ${JSON.stringify(errorData)}`);
+
+    } catch (error) {
+      if (i === retries - 1) {
+        console.error("AI 顧問連線失敗:", error);
+        throw error;
+      }
     }
   }
-  return "抱歉，系統過於忙碌，請稍後再試。";
 }
-
 const generateAllSlots = () => {
   const slots = [];
   for (let h = 10; h < 22; h++) {
@@ -132,6 +141,13 @@ export default function App() {
   const [rangeStartDate, setRangeStartDate] = useState('');
   const [rangeEndDate, setRangeEndDate] = useState('');
   const [copiedPhoneId, setCopiedPhoneId] = useState(null);
+
+  // 用來修改預約狀態的函式（完成或取消）
+const handleUpdateApptStatus = (id, newStatus) => {
+  setAppointments(prev => prev.map(appt => 
+    appt.id === id ? { ...appt, status: newStatus } : appt
+  ));
+};
 
   // 📊 老闆營業營收看板狀態
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
@@ -847,6 +863,62 @@ export default function App() {
                 </div>
               )}
               
+              {/* 預約管理與修改清單 UI */}
+<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-6">
+  <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">📅 預約訂單管理</h3>
+  
+  <div className="space-y-3">
+    {appointments.length === 0 ? (
+      <p className="text-slate-500 text-center py-4">目前尚無預約記錄</p>
+    ) : (
+      appointments.map(appt => (
+        <div key={appt.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-[#9aa486] transition-colors">
+          
+          {/* 左側：客戶與預約資訊 */}
+          <div className="mb-3 sm:mb-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-bold text-[#192039]">{appt.date}</span>
+              <span className="text-sm bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium">
+                {Array.isArray(appt.timeSlots) ? appt.timeSlots.join(', ') : appt.timeSlots}
+              </span>
+              {/* 狀態標籤 */}
+              <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                appt.status === '已取消' ? 'bg-red-100 text-red-600' : 
+                appt.status === '已完成' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
+              }`}>
+                {appt.status || '已預約'}
+              </span>
+            </div>
+            <p className="text-sm font-medium text-slate-700">
+              {appt.name} ({appt.phone}) - <span className="text-[#9aa486]">{appt.serviceType}</span>
+            </p>
+            {appt.needs && <p className="text-xs text-slate-500 mt-1">備註: {appt.needs}</p>}
+          </div>
+
+          {/* 右側：操作按鈕 */}
+          <div className="flex gap-2">
+            <button 
+              onClick={() => handleUpdateApptStatus(appt.id, '已完成')}
+              disabled={appt.status === '已完成' || appt.status === '已取消'}
+              className="px-3 py-1.5 text-sm font-bold rounded-lg bg-[#9aa486] text-white hover:bg-[#868f74] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ✓ 完成
+            </button>
+            <button 
+              onClick={() => handleUpdateApptStatus(appt.id, '已取消')}
+              disabled={appt.status === '已取消'}
+              className="px-3 py-1.5 text-sm font-bold rounded-lg bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ✕ 取消
+            </button>
+          </div>
+
+        </div>
+      ))
+    )}
+  </div>
+</div>
+
               {adminTab === 'schedule' && (
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
                   {/* 左側：排班控制台 */}
@@ -870,7 +942,7 @@ export default function App() {
                          </div>
                        </div>
                      )}
-                     
+
                      <div className="flex flex-col sm:flex-row gap-4 mb-6">
                         <select value={scheduleAdvisorId} onChange={e => setScheduleAdvisorId(e.target.value)} className="p-3 border border-slate-200 rounded-xl flex-1 font-bold outline-none focus:ring-2 focus:ring-[#e3b5a1]">
                            {TEAM_MEMBERS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -952,6 +1024,7 @@ export default function App() {
                                    <p className="font-bold text-[#192039] text-[14px] mb-1">{sched.date}</p>
                                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed max-w-[200px]">{formatTimeSlots(sched.slots)}</p>
                                 </div>
+
                                 <button onClick={() => handleDeleteFullDay(sched.id, sched.date)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors border border-transparent hover:border-rose-200 shrink-0 shadow-sm" title="刪除這天的班表">
                                    <Trash size={14} />
                                 </button>
@@ -979,6 +1052,61 @@ export default function App() {
              </a>
           </div>
         )}
+        {/* === 專屬 Ted 執行長的後台區塊 === */}
+{currentUser?.role === 'admin' && (
+  <div className="mt-8 border-t-2 border-slate-200 pt-8">
+    
+    {/* 1. 預約訂單管理清單 */}
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-6">
+      <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">📅 客戶預約訂單管理與修改</h3>
+      
+      <div className="space-y-3">
+        {appointments && appointments.length === 0 ? (
+          <p className="text-slate-500 text-center py-4">目前尚無任何預約記錄</p>
+        ) : (
+          appointments?.map(appt => (
+            <div key={appt.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-[#9aa486] transition-colors">
+              <div className="mb-3 sm:mb-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-bold text-[#192039]">{appt.date}</span>
+                  <span className="text-sm bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium">
+                    {Array.isArray(appt.timeSlots) ? appt.timeSlots.join(', ') : appt.timeSlots}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                    appt.status === '已取消' ? 'bg-red-100 text-red-600' : 
+                    appt.status === '已完成' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
+                  }`}>
+                    {appt.status || '已預約'}
+                  </span>
+                </div>
+                <p className="text-sm font-medium text-slate-700">
+                  {appt.name} ({appt.phone}) - <span className="text-[#9aa486]">{appt.serviceType}</span>
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => handleUpdateApptStatus(appt.id, '已完成')}
+                  disabled={appt.status === '已完成' || appt.status === '已取消'}
+                  className="px-3 py-1.5 text-sm font-bold rounded-lg bg-[#9aa486] text-white hover:bg-[#868f74] disabled:opacity-50"
+                >✓ 完成</button>
+                <button 
+                  onClick={() => handleUpdateApptStatus(appt.id, '已取消')}
+                  disabled={appt.status === '已取消'}
+                  className="px-3 py-1.5 text-sm font-bold rounded-lg bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50"
+                >✕ 取消</button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+
+    {/* 2. 老闆分析面板 */}
+    <BossDashboard data={appointments} />
+    
+  </div>
+)}
       </div>
 
       <footer className="w-full flex justify-between items-center px-4 pb-24 pt-4 text-xs text-white/30 relative z-10">
@@ -987,3 +1115,83 @@ export default function App() {
     </div>
   );
   }
+
+// 🚀 新增功能區：POS 系統數據分析
+// ==========================================
+
+  const getBossAnalytics = (records) => {
+  if (!records || !Array.isArray(records)) return {};
+
+  const stats = records.reduce((acc, curr) => {
+    // 嚴格檢查日期
+    if (!curr || !curr.date) return acc;
+    const dateObj = new Date(curr.date);
+    if (isNaN(dateObj.getTime())) return acc;
+
+    const month = dateObj.getMonth() + 1;
+
+    // 1. 初始化：多加一個 cancelled: 0 來記數
+    if (!acc[month]) {
+      acc[month] = { total: 0, new: 0, return: 0, cancelled: 0 };
+    }
+
+    // 2. 判斷取消邏輯 
+    // 💡 注意：這裡假設你的資料中有一個 status 欄位標記為 '已取消'。
+    // 如果你的欄位名稱不同（例如 isCancelled: true），請修改這一行！
+    if (curr.status === '已取消' || curr.status === '取消') {
+      acc[month].cancelled += 1;
+      return acc; // 已經取消的單，就不算進總預約數和新舊客了
+    }
+
+    // --- 正常的訂單計算 ---
+    acc[month].total += 1;
+
+    if (curr.customerType === '初次預約') {
+      acc[month].new += 1;
+    } else {
+      acc[month].return += 1;
+    }
+
+    return acc;
+  }, {});
+  return stats;
+};
+const BossDashboard = ({ data }) => {
+  if (!data || !Array.isArray(data)) return null;
+
+  // 💡 就算沒有資料，也會顯示面板框架，告訴老闆目前沒訂單
+  if (data.length === 0) {
+    return (
+      <div className="boss-dashboard text-white" style={{ marginTop: '20px', padding: '20px', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '16px', color: '#fff' }}>老闆數據分析面板 📊</h2>
+        <p style={{ color: '#cbd5e1' }}>目前尚無預約訂單資料可供分析。</p>
+      </div>
+    );
+  }
+
+  try {
+    const stats = getBossAnalytics(data);
+    if (!stats || typeof stats !== 'object') return null;
+
+    return (
+      <div className="boss-dashboard text-white" style={{ marginTop: '20px', padding: '20px', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '16px', color: '#fff' }}>老闆數據分析面板 📊</h2>
+        
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+          {Object.keys(stats).map(month => (
+            <div key={month} style={{ flex: '1', minWidth: '200px', padding: '16px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '8px' }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '8px', color: '#fff' }}>{month} 月份</h3>
+              <p style={{ margin: '4px 0', color: '#fff' }}>總有效預約: <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{stats[month]?.total || 0}</span></p>
+              <p style={{ margin: '4px 0', fontSize: '0.9rem', color: '#cbd5e1' }}>
+                新客: {stats[month]?.new || 0} | 回流: {stats[month]?.return || 0} | <span style={{ color: '#f87171', fontWeight: 'bold' }}>取消: {stats[month]?.cancelled || 0}</span>
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  } catch (err) {
+    console.error("Dashboard 渲染錯誤:", err);
+    return null;
+  }
+};
