@@ -98,6 +98,23 @@ const formatTimeSlots = (slots) => {
   merged.push(`${currentStart}-${currentEnd}`);
   return merged.join(', ');
 };
+// ✨ 補上這個生成 Google 行事曆連結的函式
+const generateGoogleCalendarLink = (dateStr, timeStr, service, advisor) => {
+  if (!dateStr || !timeStr) return '#';
+  try {
+    const startTime = timeStr.split('-')[0].replace(':', '');
+    const endTime = timeStr.split('-')[1].replace(':', '');
+    const cleanDate = dateStr.replace(/-/g, '');
+    const startObj = `${cleanDate}T${startTime}00`;
+    const endObj = `${cleanDate}T${endTime}00`;
+    
+    const title = encodeURIComponent(`Smart Recovery: ${service}`);
+    const details = encodeURIComponent(`顧問: ${advisor}`);
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startObj}/${endObj}&details=${details}`;
+  } catch (e) {
+    return '#';
+  }
+};
 
 const getDayLabel = (dateStr) => {
   const d = new Date(dateStr);
@@ -173,6 +190,24 @@ export default function App() {
 
   // 即時計算應收金額
   const calcFinalAmount = Math.round((Number(calcPrice) || 0) * (Number(calcDiscount) || 10) / 10);
+  const exportToGoogleSheets = async () => {
+    if (revenueRecords.length === 0) return alert('目前沒有任何營收紀錄可匯出！');
+    try {
+      alert('正在傳送資料至 Google Sheets...');
+      await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: "export", 
+          data: revenueRecords 
+        })
+      });
+      alert('✅ 匯出請求已送出，請至你的 Google Sheets 查看！');
+    } catch (e) {
+      alert('匯出失敗，請檢查網路連線。');
+    }
+  };
 
   // 按下確認收款
   const handleConfirmPayment = () => {
@@ -194,24 +229,6 @@ export default function App() {
     
     const advisorName = TEAM_MEMBERS.find(m => m.id === calcAdvisor)?.name || '未知';
     alert(`✅ 收款成功！已入帳 $${calcFinalAmount} 元\n經手人：${advisorName}`);
-    const exportToGoogleSheets = async () => {
-  if (revenueRecords.length === 0) return alert('目前沒有任何營收紀錄可匯出！');
-  try {
-    alert('正在傳送資料至 Google Sheets...');
-    await fetch(WEBHOOK_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        action: "export", 
-        data: revenueRecords 
-      })
-    });
-    alert('✅ 匯出請求已送出，請至你的 Google Sheets 查看！');
-  } catch (e) {
-    alert('匯出失敗，請檢查網路連線。');
-  }
-};
   };
 
 // === 💰 POS 營收月份選擇與計算 ===
@@ -988,12 +1005,6 @@ const handleQuickRebook = (appt) => {
                       <button onClick={() => setApptFilter('past')} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold ${apptFilter === 'past' ? 'bg-white shadow' : 'text-slate-500'}`}>歷史 (已完成)</button>
                     </div>
                   </div>
-                  <button 
-  onClick={() => setShowHistoryModal(appt.phone)} 
-  className="text-xs bg-slate-100 border border-slate-300 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all"
->
-  <Clipboard size={12}/> 查看歷史
-</button>
                   {displayAppointments.map(appt => (
                     <div key={appt.id} className="border p-5 bg-white rounded-2xl shadow-sm flex flex-col gap-3 relative overflow-hidden">
                       <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${appt.customerType === '初次預約' ? 'bg-amber-400' : 'bg-[#9aa486]'}`}></div>
@@ -1009,6 +1020,11 @@ const handleQuickRebook = (appt) => {
                         <div className="flex gap-2 border-t border-slate-100 pt-3 mt-3 flex-wrap items-center justify-between">
                           <div className="flex gap-2">
                             <a href={`tel:${appt.phone}`} className="text-xs bg-green-50 border border-green-200 text-green-600 hover:bg-green-600 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all"><Phone size={12}/> 撥打</a>
+
+                            <button onClick={() => setShowHistoryModal(appt.phone)} className="text-xs bg-slate-100 border border-slate-300 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all">
+    <Clipboard size={12}/> 查看歷史
+  </button>
+  
                             {apptFilter !== 'past' && <button onClick={() => handleDelete(appt)} className="text-xs bg-rose-50 border border-rose-200 text-rose-500 hover:bg-rose-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all"><Trash size={12}/> 取消</button>}
                           </div>
                           {apptFilter === 'past' && (
