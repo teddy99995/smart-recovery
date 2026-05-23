@@ -429,8 +429,33 @@ const monthlyTotalRevenue = useMemo(() => {
     if (!formData.name || !formData.phone || formData.timeSlots.length === 0 || !formData.serviceType || !formData.advisorId || !formData.isFirstTime || !formData.date) {
       setConflictError('請完整填寫所有必填欄位，並選擇至少一個時段'); return;
     }
-    if (formData.isFirstTime === 'yes' && formData.timeSlots.length < 2) {
-      setConflictError('初次來店需進行詳細的身體評估，請至少選擇 2 個時段 (共 1 小時) 喔！'); return;
+
+ // === 💡 新增：初次預約連續時段檢查 ===
+    if (formData.isFirstTime === 'yes') {
+      // 1. 檢查是否大於等於 1 小時 (至少 2 個時段)
+      if (formData.timeSlots.length < 2) {
+        setConflictError('初次來店需進行詳細的身體評估，請至少選擇 2 個時段 (共 1 小時) 喔！'); 
+        return;
+      }
+      // 2. 檢查選取的時段是否「完全連續」沒有斷開
+      const sortedSlots = [...formData.timeSlots].sort();
+      let isContinuous = true;
+      for (let i = 0; i < sortedSlots.length - 1; i++) {
+        // 抓出目前時段的「結束時間」與下一個時段的「開始時間」
+        const currentEnd = sortedSlots[i].split('-')[1];
+        const nextStart = sortedSlots[i+1].split('-')[0];
+        
+        // 如果連不起來，代表中間有斷層
+        if (currentEnd !== nextStart) {
+          isContinuous = false;
+          break;
+        }
+      }
+      
+      if (!isContinuous) {
+        setConflictError('⚠️ 初次預約的時段必須是「連續不斷開」的喔！請重新點選相連的時段。');
+        return;
+      }
     }
 
     let finalAdvisorId = formData.advisorId;
