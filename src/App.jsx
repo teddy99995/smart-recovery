@@ -115,6 +115,23 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null); 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginForm, setLoginForm] = useState({ account: 'ted', password: '' });
+  
+  // === 🚀 新增：自動偵測 LINE 瀏覽器並強制跳轉外部瀏覽器 ===
+  useEffect(() => {
+    // 偵測使用者的瀏覽器 User-Agent 是否包含 'Line'
+    const isLineApp = navigator.userAgent.includes('Line');
+    // 檢查網址是否已經帶有跳轉參數 (避免無限重新整理)
+    const hasExternalParam = window.location.search.includes('openExternalBrowser=1');
+
+    if (isLineApp && !hasExternalParam) {
+      // 組合新網址並加上 openExternalBrowser=1 參數
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.set('openExternalBrowser', '1');
+      // 執行跳轉
+      window.location.href = newUrl.toString();
+    }
+  }, []);
+  // ==========================================================
 
   // 補齊遺失的狀態定義
   const [scheduleDate, setScheduleDate] = useState('');
