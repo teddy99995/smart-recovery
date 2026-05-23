@@ -1401,7 +1401,9 @@ export const BossDashboard = ({ data }) => {
   if (data.length === 0) {
     return (
       <div className="bg-[#192039] text-white p-6 sm:p-8 rounded-3xl shadow-xl mt-6 border border-slate-700">
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '16px', color: '#efcd24' }}>老闆數據分析面板 📊</h2>
+        <div className="bg-[#e3b5a1] text-[#192039] px-4 py-2 rounded-xl font-bold inline-flex items-center gap-2 shadow-md tracking-wider">
+  老闆數據分析面板 📊
+</div>
         <p style={{ color: '#cbd5e1' }}>目前尚無預約訂單資料可供分析。</p>
       </div>
     );
@@ -1413,7 +1415,9 @@ export const BossDashboard = ({ data }) => {
 
     return (
       <div className="bg-[#192039] text-white p-6 sm:p-8 rounded-3xl shadow-xl mt-6 border border-slate-700">
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '16px', color: '#501b4a' }}>老闆數據分析面板 📊</h2>
+        <div className="bg-[#e3b5a1] text-[#192039] px-4 py-2 rounded-xl font-bold inline-flex items-center gap-2 shadow-md tracking-wider">
+  老闆數據分析面板 📊
+</div>
         
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
           {Object.keys(stats).map(month => (
