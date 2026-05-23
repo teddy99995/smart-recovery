@@ -1024,7 +1024,7 @@ const handleQuickRebook = (appt) => {
                             <button onClick={() => setShowHistoryModal(appt.phone)} className="text-xs bg-slate-100 border border-slate-300 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all">
     <Clipboard size={12}/> 查看歷史
   </button>
-
+  
                             {apptFilter !== 'past' && <button onClick={() => handleDelete(appt)} className="text-xs bg-rose-50 border border-rose-200 text-rose-500 hover:bg-rose-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all"><Trash size={12}/> 取消</button>}
                           </div>
                           {apptFilter === 'past' && (
@@ -1363,16 +1363,46 @@ const handleQuickRebook = (appt) => {
 // 🚀 輔助函式區：POS 系統數據分析元件
 // ==========================================
 
+export const getBossAnalytics = (records) => {
+  if (!records || !Array.isArray(records)) return {};
+
+  const stats = records.reduce((acc, curr) => {
+    if (!curr || !curr.date) return acc;
+    const dateObj = new Date(curr.date);
+    if (isNaN(dateObj.getTime())) return acc;
+
+    const month = dateObj.getMonth() + 1;
+
+    if (!acc[month]) {
+      acc[month] = { total: 0, new: 0, return: 0, cancelled: 0 };
+    }
+
+    if (curr.status === '已取消' || curr.status === '取消') {
+      acc[month].cancelled += 1;
+      return acc; 
+    }
+
+    acc[month].total += 1;
+
+    if (curr.customerType === '初次預約') {
+      acc[month].new += 1;
+    } else {
+      acc[month].return += 1;
+    }
+
+    return acc;
+  }, {});
+  return stats;
+};
+
 export const BossDashboard = ({ data }) => {
   if (!data || !Array.isArray(data)) return null;
 
   if (data.length === 0) {
     return (
-      <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 mt-6">
-        <h2 className="text-xl font-bold mb-4 text-slate-800 flex items-center gap-2">
-          📊 老闆數據分析面板
-        </h2>
-        <p className="text-slate-500">目前尚無預約訂單資料可供分析。</p>
+      <div className="bg-[#192039] text-white p-6 sm:p-8 rounded-3xl shadow-xl mt-6 border border-slate-700">
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '16px', color: '#072f8ad5' }}>老闆數據分析面板 📊</h2>
+        <p style={{ color: '#cbd5e1' }}>目前尚無預約訂單資料可供分析。</p>
       </div>
     );
   }
@@ -1382,33 +1412,17 @@ export const BossDashboard = ({ data }) => {
     if (!stats || typeof stats !== 'object') return null;
 
     return (
-      <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 mt-6">
-        <h2 className="text-xl font-bold mb-6 text-slate-800 flex items-center gap-2">
-          📊 老闆歷史月份分析
-        </h2>
+      <div className="bg-[#192039] text-white p-6 sm:p-8 rounded-3xl shadow-xl mt-6 border border-slate-700">
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '16px', color: '#501b4a' }}>老闆數據分析面板 📊</h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
           {Object.keys(stats).map(month => (
-            <div key={month} className="bg-slate-50 p-5 rounded-xl border border-slate-200 hover:border-indigo-300 transition-colors shadow-sm">
-              <h3 className="text-lg font-bold mb-3 border-b border-slate-200 pb-3 text-slate-700">
-                {month} 月份
-              </h3>
-              <p className="text-slate-600 mb-4 flex items-center justify-between">
-                <span>總有效預約</span>
-                <span className="font-extrabold text-2xl text-indigo-600">{stats[month]?.total || 0}</span>
+            <div key={month} style={{ flex: '1', minWidth: '200px', padding: '16px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '8px' }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '8px', color: '#fff' }}>{month} 月份</h3>
+              <p style={{ margin: '4px 0', color: '#fff' }}>總有效預約: <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{stats[month]?.total || 0}</span></p>
+              <p style={{ margin: '4px 0', fontSize: '0.9rem', color: '#cbd5e1' }}>
+                新客: {stats[month]?.new || 0} | 回流: {stats[month]?.return || 0} | <span style={{ color: '#f87171', fontWeight: 'bold' }}>取消: {stats[month]?.cancelled || 0}</span>
               </p>
-              
-              <div className="grid grid-cols-3 gap-2 text-center text-sm">
-                <div className="bg-blue-100 text-blue-700 py-1.5 rounded-lg font-bold">
-                  新客 {stats[month]?.new || 0}
-                </div>
-                <div className="bg-emerald-100 text-emerald-700 py-1.5 rounded-lg font-bold">
-                  回流 {stats[month]?.return || 0}
-                </div>
-                <div className="bg-rose-100 text-rose-700 py-1.5 rounded-lg font-bold">
-                  取消 {stats[month]?.cancelled || 0}
-                </div>
-              </div>
             </div>
           ))}
         </div>
