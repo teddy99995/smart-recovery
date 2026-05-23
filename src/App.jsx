@@ -108,55 +108,36 @@ const getDayLabel = (dateStr) => {
 // 產生 Google Calendar 行事曆連結
 const generateGoogleCalendarLink = (date, exactDisplayTime, service, advisor) => {
   try {
-    // 解析時間 (例如: "14:00-15:30")
     const startTimeStr = exactDisplayTime.split('-')[0];
     const endTimeStr = exactDisplayTime.split('-')[1];
-    
-    // 組合日期時間字串格式為 YYYYMMDDTHHMMSSZ (需轉為 UTC)
     const startDate = new Date(`${date}T${startTimeStr}:00`);
     const endDate = new Date(`${date}T${endTimeStr}:00`);
-    
     const formatStr = (d) => {
       const pad = (n) => n < 10 ? '0' + n : n;
       return `${d.getUTCFullYear()}${pad(d.getUTCMonth()+1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
     };
-
     const text = encodeURIComponent(`[智理運動恢復] ${service}`);
     const details = encodeURIComponent(`預約服務: ${service}\n指定顧問: ${advisor}\n期待您的到來！\n若需更改時間請透過官方 LINE 聯繫。`);
     const location = encodeURIComponent(`智理運動恢復`);
-    
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${formatStr(startDate)}/${formatStr(endDate)}&details=${details}&location=${location}`;
-  } catch (e) {
-    return "#";
-  }
+  } catch (e) { return "#"; }
 };
 
-// 👑 老闆營收計算核心邏輯
+// ==========================================
+// 👑 老闆營收計算與儀表板元件 (移至外部)
+// ==========================================
 export const getBossAnalytics = (records, appts) => {
   if (!appts || !Array.isArray(appts)) return {};
-  
-  // 以預約資料來統計 KPI
   const stats = appts.reduce((acc, curr) => {
     if (!curr || !curr.date) return acc;
-    const month = curr.date.substring(0, 7); // 格式 YYYY-MM
-    
-    if (!acc[month]) {
-      acc[month] = { total: 0, new: 0, return: 0, cancelled: 0, revenue: 0 };
-    }
-
-    if (curr.status === '已取消') {
-      acc[month].cancelled += 1;
-      return acc;
-    }
-
+    const month = curr.date.substring(0, 7);
+    if (!acc[month]) acc[month] = { total: 0, new: 0, return: 0, cancelled: 0, revenue: 0 };
+    if (curr.status === '已取消' || curr.status === '取消') { acc[month].cancelled += 1; return acc; }
     acc[month].total += 1;
-    if (curr.customerType === '初次預約') acc[month].new += 1;
-    else acc[month].return += 1;
-    
+    if (curr.customerType === '初次預約') acc[month].new += 1; else acc[month].return += 1;
     return acc;
   }, {});
 
-  // 若有 POS 實際營收紀錄，可以疊加計算 (進階報表)
   if (records && Array.isArray(records)) {
      records.forEach(rec => {
         if (!rec.date) return;
@@ -165,13 +146,9 @@ export const getBossAnalytics = (records, appts) => {
         stats[month].revenue += (rec.finalAmount || 0);
      });
   }
-
   return stats;
 };
 
-// ==========================================
-// 👑 獨立的 Boss Dashboard 元件
-// ==========================================
 export const BossDashboard = ({ appts, records }) => {
   if (!appts || !Array.isArray(appts)) return null;
 
@@ -179,53 +156,35 @@ export const BossDashboard = ({ appts, records }) => {
     if (!records || records.length === 0) return alert('目前沒有任何營收紀錄可以匯出喔！');
     try {
       alert('準備將資料匯出至 Google Sheets... (這可能需要幾秒鐘)');
-      // 透過原本的 Webhook 傳送資料
       await fetch(WEBHOOK_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: "export_revenue",
-          data: records
-        })
+        method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: "export_revenue", data: records })
       });
       alert('✅ 匯出請求已成功送出！請至您的 Google Sheets 查看。');
-    } catch (e) {
-      alert('匯出失敗，請檢查網路連線。');
-    }
+    } catch (e) { alert('匯出失敗，請檢查網路連線。'); }
   };
 
   try {
     const stats = getBossAnalytics(records, appts);
-    // 反轉陣列讓最新的月份排在前面
     const sortedMonths = Object.keys(stats).sort().reverse();
-
     return (
       <div className="bg-[#192039] text-white p-6 sm:p-8 rounded-3xl shadow-xl mt-6 border border-slate-700 animate-in fade-in">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-slate-700 pb-4 gap-4">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <BarChart className="text-[#e3b5a1]" /> 老闆總體數據分析
-          </h2>
-          <button 
-            onClick={exportToGoogleSheets}
-            className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-4 rounded-xl text-sm transition-all flex items-center gap-2 shadow-md"
-          >
+          <h2 className="text-xl font-bold flex items-center gap-2"><BarChart className="text-[#e3b5a1]" /> 老闆總體數據分析</h2>
+          <button onClick={exportToGoogleSheets} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-4 rounded-xl text-sm transition-all flex items-center gap-2 shadow-md">
             <Download size={16} /> 匯出 POS 營收至 Excel
           </button>
         </div>
-        
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {sortedMonths.map(month => (
             <div key={month} className="bg-[#232d4e] p-5 rounded-2xl border border-slate-600 shadow-inner">
               <h3 className="text-lg font-bold mb-3 border-b border-slate-600 pb-2 text-[#e3b5a1]">{month} 月份結算</h3>
               <p className="text-sm mb-1 text-slate-300">總有效預約單數: <span className="font-bold text-lg text-white">{stats[month].total}</span> 單</p>
-              
               <div className="flex gap-3 my-3">
                 <span className="bg-amber-900/40 text-amber-400 text-xs px-2 py-1 rounded font-bold">新客: {stats[month].new}</span>
                 <span className="bg-blue-900/40 text-blue-400 text-xs px-2 py-1 rounded font-bold">回流: {stats[month].return}</span>
                 <span className="bg-rose-900/40 text-rose-400 text-xs px-2 py-1 rounded font-bold">取消: {stats[month].cancelled}</span>
               </div>
-
               {stats[month].revenue > 0 && (
                 <div className="mt-4 pt-3 border-t border-slate-600/50">
                   <p className="text-xs text-slate-400 mb-1">POS 收銀機實際入帳</p>
@@ -238,26 +197,21 @@ export const BossDashboard = ({ appts, records }) => {
         </div>
       </div>
     );
-  } catch (err) {
-    return null;
-  }
+  } catch (err) { return null; }
 };
 
 
 // ==========================================
-// 🌟 主要 App 元件開始
+// 🌟 核心 App 元件開始
 // ==========================================
 export default function App() {
-  // --- 狀態定義區 ---
   const [appointments, setAppointments] = useState([]);
   const [schedules, setSchedules] = useState([]); 
   const [activeAdvisors, setActiveAdvisors] = useState(TEAM_MEMBERS.map(m => m.id)); 
   const [currentUser, setCurrentUser] = useState(null); 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginForm, setLoginForm] = useState({ account: 'ted', password: '' });
-
-  // 📝 歷史病歷模態框狀態
-  const [showHistoryModal, setShowHistoryModal] = useState(null); // 存電話號碼
+  const [showHistoryModal, setShowHistoryModal] = useState(null); // 病歷模態框狀態
 
   const getSavedCustomer = () => {
     try { const saved = localStorage.getItem('smartRecoveryCustomer'); return saved ? JSON.parse(saved) : { name: '', phone: '' }; } 
@@ -273,12 +227,10 @@ export default function App() {
   const [successData, setSuccessData] = useState(null); 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 後台狀態管理
   const [adminTab, setAdminTab] = useState('appointments'); 
   const [apptFilter, setApptFilter] = useState('today');
   const [adminViewAdvisor, setAdminViewAdvisor] = useState('all');
   
-  // 排班狀態
   const [scheduleAdvisorId, setScheduleAdvisorId] = useState('ted');
   const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedSlots, setSelectedSlots] = useState([]);
@@ -287,24 +239,18 @@ export default function App() {
   const [rangeEndDate, setRangeEndDate] = useState('');
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
-  // 📊 老闆看板狀態
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
-  const [selectedAnalyticsAdvisors, setSelectedAnalyticsAdvisors] = useState(TEAM_MEMBERS.map(m => m.id));
-
-  // ✨ AI 狀態管理
   const [aiInput, setAiInput] = useState('');
   const [aiRec, setAiRec] = useState('');
   const [loadingAi, setLoadingAi] = useState(false);
   const [adviceMap, setAdviceMap] = useState({});
 
-  // 💰 POS 收銀台狀態
   const [showPOS, setShowPOS] = useState(false); 
   const [calcPrice, setCalcPrice] = useState('');
   const [calcDiscount, setCalcDiscount] = useState('10');
   const [calcAdvisor, setCalcAdvisor] = useState('');
   const [revenueRecords, setRevenueRecords] = useState([]); 
 
-  // --- 🚀 新增：自動偵測 LINE 瀏覽器並跳轉 ---
+  // --- LINE 瀏覽器自動跳轉 ---
   useEffect(() => {
     const isLineApp = navigator.userAgent.includes('Line');
     const hasExternalParam = window.location.search.includes('openExternalBrowser=1');
@@ -346,7 +292,7 @@ export default function App() {
     return () => { unsubAppt(); unsubSched(); unsubSettings(); };
   }, []);
 
-  // --- POS 收銀與營收計算 ---
+  // --- POS 收銀月切換與計算 ---
   const [posSelectedMonth, setPosSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
 
   const availablePosMonths = useMemo(() => {
@@ -368,25 +314,13 @@ export default function App() {
   const handleConfirmPayment = () => {
     if (!calcPrice || Number(calcPrice) <= 0) return alert('請先輸入有效的服務價格！');
     if (!calcAdvisor) return alert('⚠️ 請先選擇「本次收款人」是誰，才能結帳喔！');
-    
-    const newRecord = {
-      id: Date.now(),
-      date: new Date().toISOString(),
-      originalPrice: Number(calcPrice),
-      discount: Number(calcDiscount),
-      finalAmount: calcFinalAmount,
-      advisorId: calcAdvisor
-    };
-    
+    const newRecord = { id: Date.now(), date: new Date().toISOString(), originalPrice: Number(calcPrice), discount: Number(calcDiscount), finalAmount: calcFinalAmount, advisorId: calcAdvisor };
     setRevenueRecords(prev => [...prev, newRecord]);
-    setCalcPrice(''); 
-    setCalcDiscount('10'); 
-    
+    setCalcPrice(''); setCalcDiscount('10'); 
     const advisorName = TEAM_MEMBERS.find(m => m.id === calcAdvisor)?.name || '未知';
     alert(`✅ 收款成功！已入帳 $${calcFinalAmount} 元\n經手人：${advisorName}`);
   };
 
-  // --- 管理功能 ---
   const handleLogin = (e) => {
     e.preventDefault();
     const user = TEAM_MEMBERS.find(u => u.id === loginForm.account && u.pwd === loginForm.password);
@@ -413,70 +347,41 @@ export default function App() {
     }
   };
 
-  // --- ✨ AI 功能 ---
   const handleAIGetRecommendation = async () => {
     if (!aiInput.trim()) return;
     setLoadingAi(true);
-    const prompt = `客人描述身體狀況：「${aiInput}」。請從以下 Smart Recovery 的服務中，推薦一個最適合的項目，並給予一句溫暖簡短的建議原因。
-服務選項：${serviceTypes.join('、')}。
-回應格式：
-【推薦項目】：(填入服務名稱)
-【建議原因】：(填入簡短原因)`;
+    const prompt = `客人描述身體狀況：「${aiInput}」。請從以下 Smart Recovery 的服務中，推薦一個最適合的項目，並給予一句溫暖簡短的建議原因。服務選項：${serviceTypes.join('、')}。`;
     try {
       const res = await callGeminiAPI(prompt);
       setAiRec(res.trim());
-    } catch (e) {
-      setAiRec("抱歉，目前 AI 顧問有點忙碌，請稍後再試。");
-    } finally {
-      setLoadingAi(false);
-    }
+    } catch (e) { setAiRec("抱歉，目前 AI 顧問有點忙碌，請稍後再試。"); } finally { setLoadingAi(false); }
   };
 
   const applyAiService = () => {
     const matchedService = serviceTypes.find(s => aiRec && aiRec.includes(s));
-    if (matchedService) {
-      setFormData(prev => ({ ...prev, serviceType: matchedService }));
-      alert(`✅ 已為您自動套用服務：${matchedService}`);
-    } else {
-      alert("請手動在下方表單選擇對應的服務喔！");
-    }
+    if (matchedService) { setFormData(prev => ({ ...prev, serviceType: matchedService })); alert(`✅ 已為您自動套用服務：${matchedService}`); } 
+    else { alert("請手動在下方表單選擇對應的服務喔！"); }
   };
 
   const generatePostSessionAdvice = async (apptId, customerName, service, note) => {
     setAdviceMap(prev => ({ ...prev, [apptId]: '✨ 正在為客人量身打造課後保養建議...' }));
-    const prompt = `您是專業運動恢復顧問。您剛為客人「${customerName}」完成了「${service}」服務。客人備註：「${note || '無'}」。
-請生成一段溫暖的 LINE 課後關心訊息。包含：1.溫馨問候 2.針對服務的3個居家伸展建議(條列式) 3.結語。`;
+    const prompt = `您是專業運動恢復顧問。您剛為客人「${customerName}」完成了「${service}」服務。客人備註：「${note || '無'}」。請生成一段溫暖的 LINE 課後關心訊息。`;
     try {
-      const advice = await callGeminiAPI(prompt);
-      setAdviceMap(prev => ({ ...prev, [apptId]: advice }));
-    } catch (e) {
-      setAdviceMap(prev => ({ ...prev, [apptId]: '❌ 產生建議失敗，請稍後再試。' }));
-    }
+      const advice = await callGeminiAPI(prompt); setAdviceMap(prev => ({ ...prev, [apptId]: advice }));
+    } catch (e) { setAdviceMap(prev => ({ ...prev, [apptId]: '❌ 產生建議失敗，請稍後再試。' })); }
   };
 
   const copyAdvice = (apptId) => {
-    const text = adviceMap[apptId];
-    if (!text) return;
+    const text = adviceMap[apptId]; if (!text) return;
     const textArea = document.createElement("textarea"); textArea.value = text; document.body.appendChild(textArea); textArea.select();
     try { document.execCommand('copy'); alert('✅ 已複製！可直接貼上至 LINE 傳給客人'); } catch (err) {} document.body.removeChild(textArea);
   };
 
-  // --- 排班邏輯 ---
   const next28Days = useMemo(() => {
     const days = []; const today = new Date();
-    for (let i = 1; i <= 28; i++) {
-      const nextDay = new Date(today); nextDay.setDate(today.getDate() + i); days.push(nextDay.toISOString().split('T')[0]);
-    }
+    for (let i = 1; i <= 28; i++) { const nextDay = new Date(today); nextDay.setDate(today.getDate() + i); days.push(nextDay.toISOString().split('T')[0]); }
     return days;
   }, []);
-
-  const availableMonths = useMemo(() => {
-    const months = new Set(appointments.map(a => a.date ? a.date.substring(0, 7) : null).filter(Boolean));
-    const monthArray = Array.from(months).sort().reverse();
-    const currentMonth = new Date().toISOString().substring(0, 7);
-    if (!monthArray.includes(currentMonth)) monthArray.unshift(currentMonth);
-    return monthArray;
-  }, [appointments]);
 
   useEffect(() => {
     if (scheduleAdvisorId && scheduleDate) {
@@ -507,11 +412,7 @@ export default function App() {
       if (dateStr !== scheduleDate && !additionalDates.includes(dateStr)) addedList.push(dateStr);
       currentDate.setDate(currentDate.getDate() + 1);
     }
-    if (addedList.length > 0) { 
-      setAdditionalDates(prev => [...prev, ...addedList].sort()); 
-      alert(`✅ 已成功匯入 ${addedList.length} 天！`); 
-      setRangeStartDate(''); setRangeEndDate(''); 
-    }
+    if (addedList.length > 0) { setAdditionalDates(prev => [...prev, ...addedList].sort()); alert(`✅ 已成功匯入 ${addedList.length} 天！`); setRangeStartDate(''); setRangeEndDate(''); }
   };
 
   const handleSaveSchedule = async () => {
@@ -523,41 +424,28 @@ export default function App() {
         if (selectedSlots.length === 0) batch.delete(docRef); 
         else batch.set(docRef, { advisorId: scheduleAdvisorId, date: date, slots: selectedSlots, updatedAt: new Date().toISOString() });
       });
-      await batch.commit(); 
-      alert(`✅ 排班設定已成功套用至 ${1 + additionalDates.length} 個日期！`); 
-      setAdditionalDates([]); 
+      await batch.commit(); alert(`✅ 排班設定已成功套用至 ${1 + additionalDates.length} 個日期！`); setAdditionalDates([]); 
     } catch (err) { alert("儲存失敗：" + err.message); }
     setIsSavingSchedule(false);
   };
 
   const handleDeleteFullDay = async (schedId, sDate) => {
     if(window.confirm(`確定要刪除 ${sDate} 的所有排班嗎？\n(若有客人已預約該日，客人的預約紀錄仍會保留)`)) {
-      try {
-        await deleteDoc(doc(db, "schedules", schedId));
-        if (sDate === scheduleDate) setSelectedSlots([]);
-      } catch (err) { alert("刪除失敗：" + err.message); }
+      try { await deleteDoc(doc(db, "schedules", schedId)); if (sDate === scheduleDate) setSelectedSlots([]); } catch (err) { alert("刪除失敗：" + err.message); }
     }
   };
 
   const handleToggleAdvisor = async (advisorId) => {
-    if (currentUser?.role !== 'admin') {
-      alert('權限不足：只有執行長 (Ted) 能夠更改顧問前台顯示狀態！');
-      return;
-    }
-    const newActiveIds = activeAdvisors.includes(advisorId)
-      ? activeAdvisors.filter(id => id !== advisorId)
-      : [...activeAdvisors, advisorId];
+    if (currentUser?.role !== 'admin') { alert('權限不足：只有執行長 (Ted) 能夠更改顧問前台顯示狀態！'); return; }
+    const newActiveIds = activeAdvisors.includes(advisorId) ? activeAdvisors.filter(id => id !== advisorId) : [...activeAdvisors, advisorId];
     setActiveAdvisors(newActiveIds);
-    try { await setDoc(doc(db, "settings", "teamConfig"), { activeIds: newActiveIds }, { merge: true }); } 
-    catch (error) { alert("狀態更新失敗，請檢查網路連線。"); }
+    try { await setDoc(doc(db, "settings", "teamConfig"), { activeIds: newActiveIds }, { merge: true }); } catch (error) { alert("狀態更新失敗，請檢查網路連線。"); }
   };
 
   const advisorFutureSchedules = useMemo(() => {
     if (!scheduleAdvisorId) return [];
     const today = new Date().toISOString().split('T')[0];
-    return schedules
-      .filter(s => s.advisorId === scheduleAdvisorId && s.date >= today && s.slots && s.slots.length > 0)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return schedules.filter(s => s.advisorId === scheduleAdvisorId && s.date >= today && s.slots && s.slots.length > 0).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [schedules, scheduleAdvisorId]);
 
   const clientAvailableSlots = useMemo(() => {
@@ -578,35 +466,25 @@ export default function App() {
     }
   }, [formData.date, formData.advisorId, schedules, appointments, activeAdvisors]);
 
-  // --- 送出預約 (含連續時段檢查) ---
+  // --- 送出預約 ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.phone || formData.timeSlots.length === 0 || !formData.serviceType || !formData.advisorId || !formData.isFirstTime || !formData.date) {
       setConflictError('請完整填寫所有必填欄位，並選擇至少一個時段'); return;
     }
 
-    // === 💡 新增：初次預約連續時段檢查 ===
+    // 初次預約時段連續性檢查
     if (formData.isFirstTime === 'yes') {
-      if (formData.timeSlots.length < 2) {
-        setConflictError('初次來店需進行詳細的身體評估，請至少選擇 2 個時段 (共 1 小時) 喔！'); 
-        return;
-      }
+      if (formData.timeSlots.length < 2) { setConflictError('初次來店需進行詳細的身體評估，請至少選擇 2 個時段 (共 1 小時) 喔！'); return; }
       const sortedSlots = [...formData.timeSlots].sort();
       let isContinuous = true;
       for (let i = 0; i < sortedSlots.length - 1; i++) {
         const currentEnd = sortedSlots[i].split('-')[1];
         const nextStart = sortedSlots[i+1].split('-')[0];
-        if (currentEnd !== nextStart) {
-          isContinuous = false;
-          break;
-        }
+        if (currentEnd !== nextStart) { isContinuous = false; break; }
       }
-      if (!isContinuous) {
-        setConflictError('⚠️ 初次預約的時段必須是「連續不斷開」的喔！請重新點選相連的時段。');
-        return;
-      }
+      if (!isContinuous) { setConflictError('⚠️ 初次預約的時段必須是「連續不斷開」的喔！請重新點選相連的時段。'); return; }
     }
-    // ===================================
 
     let finalAdvisorId = formData.advisorId;
     let finalAdvisorName = "不指定顧問";
@@ -679,37 +557,24 @@ export default function App() {
   };
   const displayAppointments = getFilteredAppointments();
 
-  const renderTimeSection = (title, icon, startH, endH, bgColor, textColor, borderColor) => {
-    const sectionSlots = ALL_TIME_SLOTS.filter(s => { const h = parseInt(s.split(':')[0]); return h >= startH && h < endH; });
-    const allSelected = sectionSlots.every(s => selectedSlots.includes(s));
-    return (
-      <div className={`mb-4 p-4 rounded-2xl border ${borderColor} bg-white shadow-sm`}>
-        <div className="flex justify-between items-center mb-3">
-          <h4 className={`text-[15px] font-bold flex items-center gap-2 ${textColor}`}>{icon} {title}</h4>
-          <button onClick={() => handleSectionSelect(startH, endH)} className={`text-[12px] font-bold px-3 py-1.5 rounded-lg transition-all ${allSelected ? 'bg-slate-100 text-slate-500' : `${bgColor} ${textColor}`}`}>{allSelected ? '取消全選' : '全選區段'}</button>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          {sectionSlots.map(slot => {
-            const isSelected = selectedSlots.includes(slot);
-            return <button key={slot} onClick={() => toggleAdminSlot(slot)} className={`py-2.5 rounded-xl text-[13px] font-bold border-2 flex items-center justify-center gap-1.5 ${isSelected ? 'bg-[#f4faec] border-[#9aa486] text-[#6d755d]' : 'bg-slate-50 border-transparent text-slate-500'}`}>{isSelected && <CheckCircle size={14} />} {slot}</button>;
-          })}
-        </div>
-      </div>
-    );
-  };
-
   // ==========================================
-  // 🎨 UI 渲染區 (唯一 return 進入點)
+  // 🎨 UI 渲染區 
   // ==========================================
   return (
     <div className="min-h-screen bg-[#192039] p-4 md:p-8 font-sans text-slate-800 selection:bg-[#e3b5a1] selection:text-[#192039] flex flex-col relative">
       
-      {/* 左上角隱藏登入按鈕 */}
+      {/* 登入按鈕與收銀機導覽 */}
       <button onClick={() => !currentUser ? setShowLoginModal(true) : handleLogout()} className="fixed top-4 left-4 z-50 p-2.5 bg-[#12182c]/80 backdrop-blur-md rounded-full text-white/50 hover:text-[#e3b5a1] border border-white/10 transition-all shadow-md" title={currentUser ? "登出" : "管理員入口"}>
         <Settings size={20} />
       </button>
 
-      {/* 右下角懸浮 LINE */}
+      {/* 獨立收銀機觸發按鈕 (所有人可見) */}
+      {currentUser && (
+        <button onClick={() => setShowPOS(true)} className="fixed top-4 left-16 z-50 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-full shadow-md flex items-center gap-2 transition-all active:scale-95">
+          💰 收銀機
+        </button>
+      )}
+
       {!currentUser && (
         <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 z-50 bg-[#06C755] text-white p-4 rounded-full shadow-[0_10px_25px_rgba(6,199,85,0.4)] hover:scale-110 transition-all flex items-center justify-center gap-2 group">
           <MessageCircle size={28} />
@@ -744,7 +609,7 @@ export default function App() {
             <p className="text-sm font-bold text-slate-500 mb-4 bg-slate-100 p-2 rounded-lg">查詢電話：{showHistoryModal}</p>
             
             <div className="overflow-y-auto pr-2 space-y-3 flex-1">
-              {appointments.filter(a => a.phone === showHistoryModal).sort((a,b) => new Date(b.date) - new Date(a.date)).map((appt, i) => (
+              {appointments.filter(a => a.phone === showHistoryModal).sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0)).map((appt, i) => (
                 <div key={i} className="border border-slate-200 rounded-xl p-4 bg-slate-50">
                   <div className="flex justify-between items-center mb-2">
                     <span className="font-bold text-[#192039]">{appt.date}</span>
@@ -754,9 +619,7 @@ export default function App() {
                   {appt.needs && <p className="text-sm text-slate-600 mt-1"><strong>備註:</strong> {appt.needs}</p>}
                 </div>
               ))}
-              {appointments.filter(a => a.phone === showHistoryModal).length === 0 && (
-                <p className="text-slate-400 text-center py-10">尚無過去的預約紀錄</p>
-              )}
+              {appointments.filter(a => a.phone === showHistoryModal).length === 0 && <p className="text-slate-400 text-center py-10">尚無過去的預約紀錄</p>}
             </div>
           </div>
         </div>
@@ -805,34 +668,34 @@ export default function App() {
                 <div className="space-y-3">
                   <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                     <span className="text-slate-500 text-[15px]">預約姓名</span>
-                    <span className="text-slate-800 font-bold text-[15px]">{successData?.name}</span>
+                    <span className="text-slate-800 font-bold text-[15px]">{successData?.name || '無'}</span>
                   </div>
                   <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                     <span className="text-slate-500 text-[15px]">客戶屬性</span>
-                    <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-[15px] font-bold">{successData?.customerType}</span>
+                    <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-[15px] font-bold">{successData?.customerType || '無'}</span>
                   </div>
                   <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                     <span className="text-slate-500 text-[15px]">預約項目</span>
-                    <span className="text-slate-800 font-bold text-[15px] text-right max-w-[160px] truncate">{successData?.service}</span>
+                    <span className="text-slate-800 font-bold text-[15px] text-right max-w-[160px] truncate">{successData?.service || '無'}</span>
                   </div>
                   <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                     <span className="text-slate-500 text-[15px]">指定顧問</span>
-                    <span className="text-slate-800 font-bold text-[15px]">{successData?.advisor}</span>
+                    <span className="text-slate-800 font-bold text-[15px]">{successData?.advisor || '無'}</span>
                   </div>
                   <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                     <span className="text-slate-500 text-[15px]">預約日期</span>
-                    <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md text-[15px] font-bold">{successData?.date}</span>
+                    <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md text-[15px] font-bold">{successData?.date || '無'}</span>
                   </div>
                   <div className="flex justify-between items-center pb-1">
                     <span className="text-slate-500 text-[15px]">預約時間</span>
-                    <span className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md text-[15px] font-bold">{successData?.time}</span>
+                    <span className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md text-[15px] font-bold">{successData?.time || '無'}</span>
                   </div>
                 </div>
               </div>
 
               {/* 💡 外部日曆整合 */}
               <a href={generateGoogleCalendarLink(successData?.date, successData?.time, successData?.service, successData?.advisor)} target="_blank" rel="noopener noreferrer" className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 py-3 rounded-xl font-bold flex items-center justify-center gap-2 mb-3 transition-colors">
-                <CalendarPlus size={18} /> 將行程加入 Google 行事曆
+                <CalendarPlus size={18} /> 將行程加入 Google / Apple 行事曆
               </a>
 
               <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 mb-4 shadow-md transition-colors">
@@ -900,31 +763,16 @@ export default function App() {
               <div className="flex flex-wrap bg-[#232d4e] p-1 rounded-xl gap-1">
                 <button onClick={() => setAdminTab('appointments')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 ${adminTab === 'appointments' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:text-white'}`}><Clipboard size={16} /> 戰情室</button>
                 <button onClick={() => setAdminTab('schedule')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 ${adminTab === 'schedule' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:text-white'}`}><Calendar size={16} /> 排班</button>
-                {/* 👑 老闆專屬標籤 */}
-                {currentUser.role === 'admin' && (
-                  <button onClick={() => setAdminTab('analytics')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 ${adminTab === 'analytics' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:text-white'}`}><BarChart size={16} /> 營業數據</button>
-                )}
-                {/* 開啟獨立收銀台 */}
-                <button onClick={() => setShowPOS(true)} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-5 rounded-xl shadow-md flex items-center gap-2 ml-4 transition-all">
-                  💰 櫃檯收銀機
-                </button>
               </div>
             </div>
 
             <div className="p-4 sm:p-8 flex-1 bg-slate-50">
               
-              {/* 👑 營業營收儀表板 */}
-              {adminTab === 'analytics' && currentUser.role === 'admin' && (
-                <div className="animate-in fade-in">
-                  <BossDashboard appts={appointments} records={revenueRecords} />
-                </div>
-              )}
-
               {/* 📋 預約戰情室 */}
               {adminTab === 'appointments' && (
                 <div className="space-y-4">
                   <div className="flex justify-between items-center mb-4 border-b pb-4 gap-4 flex-wrap">
-                    <h3 className="text-lg font-bold flex items-center gap-2 text-slate-800"><Clipboard className="text-[#9aa486]" /> 預約戰情室</h3>
+                    <h3 className="text-lg font-bold flex items-center gap-2 text-slate-800"><Clipboard className="text-[#9aa486]" /> 預約訂單管理與修改</h3>
                     <div className="flex bg-slate-200 p-1 rounded-xl">
                       <button onClick={() => setApptFilter('today')} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold ${apptFilter === 'today' ? 'bg-white shadow' : 'text-slate-500'}`}>今日</button>
                       <button onClick={() => setApptFilter('upcoming')} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold ${apptFilter === 'upcoming' ? 'bg-white shadow' : 'text-slate-500'}`}>未來</button>
@@ -933,7 +781,7 @@ export default function App() {
                   </div>
 
                   {displayAppointments.map(appt => (
-                    <div key={appt.id} className="border p-5 bg-white rounded-2xl shadow-sm flex flex-col gap-3 relative overflow-hidden">
+                    <div key={appt.id} className="border p-5 bg-white rounded-2xl shadow-sm flex flex-col gap-3 relative overflow-hidden hover:border-[#9aa486] transition-colors">
                       <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${appt.customerType === '初次預約' ? 'bg-amber-400' : 'bg-[#9aa486]'}`}></div>
                       <div className="pl-2">
                         <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
@@ -952,12 +800,12 @@ export default function App() {
                         <div className="flex gap-2 border-t border-slate-100 pt-3 mt-3 flex-wrap items-center justify-between">
                           <div className="flex gap-2">
                             <a href={`tel:${appt.phone}`} className="text-xs bg-green-50 border border-green-200 text-green-600 hover:bg-green-600 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all"><Phone size={12}/> 撥打</a>
-                            {apptFilter !== 'past' && <button onClick={() => handleDelete(appt)} className="text-xs bg-rose-50 border border-rose-200 text-rose-500 hover:bg-rose-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all"><Trash size={12}/> 取消預約</button>}
                             
-                            {/* 💡 歷史紀錄查看按鈕 */}
                             <button onClick={() => setShowHistoryModal(appt.phone)} className="text-xs bg-slate-100 border border-slate-300 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all">
-                              <Clipboard size={12}/> 查看歷史病歷
+                              <Clipboard size={12}/> 病歷與歷史紀錄
                             </button>
+
+                            {apptFilter !== 'past' && <button onClick={() => handleDelete(appt)} className="text-xs bg-rose-50 border border-rose-200 text-rose-500 hover:bg-rose-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all"><Trash size={12}/> 取消預約</button>}
                           </div>
                           
                           <div className="flex gap-2">
@@ -1089,6 +937,11 @@ export default function App() {
                   </div>
                 </div>
               )}
+
+              {/* 👑 專屬老闆的老闆面板元件 */}
+              {currentUser?.role === 'admin' && (
+                 <BossDashboard appts={appointments} records={revenueRecords} />
+              )}
             </div>
           </div>
         )}
@@ -1099,7 +952,7 @@ export default function App() {
       </footer>
 
       {/* ================================================== */}
-      {/* 💰 獨立全螢幕 POS 收銀頁面 (包含在 App 的 Return 內) */}
+      {/* 💰 獨立全螢幕 POS 收銀頁面 */}
       {/* ================================================== */}
       {showPOS && currentUser && (
         <div className="fixed inset-0 bg-slate-100 z-[200] overflow-y-auto p-4 sm:p-8 flex flex-col animate-in slide-in-from-bottom-10">
