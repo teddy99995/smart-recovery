@@ -177,15 +177,26 @@ export default function App() {
     alert(`✅ 收款成功！已入帳 $${calcFinalAmount} 元\n經手人：${advisorName}`);
   };
 
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-  const monthlyTotalRevenue = revenueRecords
-    .filter(record => {
-      const d = new Date(record.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    })
-    .reduce((sum, record) => sum + record.finalAmount, 0);
+// === 💰 POS 營收月份選擇與計算 ===
+const [posSelectedMonth, setPosSelectedMonth] = useState(new Date().toISOString().substring(0, 7)); // 預設為當月 (格式: YYYY-MM)
 
+// 自動抓取「有收款紀錄的所有月份」(用來產生下拉選單選項)
+const availablePosMonths = useMemo(() => {
+  const months = new Set(revenueRecords.map(r => r.date ? r.date.substring(0, 7) : null).filter(Boolean));
+  const monthArray = Array.from(months).sort().reverse(); // 降冪排列，最新的在前面
+  const currentMonthStr = new Date().toISOString().substring(0, 7);
+  // 確保「本月」一定在選單裡，就算還沒有收入
+  if (!monthArray.includes(currentMonthStr)) monthArray.unshift(currentMonthStr);
+  return monthArray;
+}, [revenueRecords]);
+
+// 自動計算「選擇月份」的總營收 (只要 revenueRecords 或 posSelectedMonth 改變，這裡就會自動更新)
+const monthlyTotalRevenue = useMemo(() => {
+  return revenueRecords
+    .filter(record => record.date && record.date.startsWith(posSelectedMonth))
+    .reduce((sum, record) => sum + record.finalAmount, 0);
+}, [revenueRecords, posSelectedMonth]);
+// ===============================
   // 用來修改預約狀態的函式（完成或取消）
   const handleUpdateApptStatus = (id, newStatus) => {
     setAppointments(prev => prev.map(appt => 
@@ -1130,7 +1141,21 @@ export default function App() {
             </div>
 
             <div className="bg-slate-800 text-white p-8 rounded-2xl shadow-lg flex flex-col">
-              <h4 className="text-xl font-bold text-slate-300 mb-4">本月累積營收 ({currentMonth + 1}月)</h4>
+              
+              {/* 替換成以下這個帶有下拉選單的區塊 */}
+      <div className="flex justify-between items-center mb-4">
+        <h4 className="text-xl font-bold text-slate-300">累積營收</h4>
+        <select 
+          value={posSelectedMonth} 
+          onChange={(e) => setPosSelectedMonth(e.target.value)}
+          className="bg-slate-700 text-white border border-slate-600 rounded-lg px-3 py-1.5 outline-none font-bold focus:ring-2 focus:ring-emerald-400"
+        >
+          {availablePosMonths.map(m => (
+            <option key={m} value={m}>{m} 月份</option>
+          ))}
+        </select>
+      </div>
+              
               <div className="text-7xl font-bold text-emerald-400 mb-10 drop-shadow-md pb-8 border-b border-slate-600">
                 ${monthlyTotalRevenue.toLocaleString()}
               </div>
@@ -1217,7 +1242,7 @@ export const BossDashboard = ({ data }) => {
 
   if (data.length === 0) {
     return (
-      <div className="boss-dashboard text-white" style={{ marginTop: '20px', padding: '20px', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)' }}>
+      <div className="bg-[#192039] text-white p-6 sm:p-8 rounded-3xl shadow-xl mt-6 border border-slate-700">
         <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '16px', color: '#fff' }}>老闆數據分析面板 📊</h2>
         <p style={{ color: '#cbd5e1' }}>目前尚無預約訂單資料可供分析。</p>
       </div>
@@ -1229,7 +1254,7 @@ export const BossDashboard = ({ data }) => {
     if (!stats || typeof stats !== 'object') return null;
 
     return (
-      <div className="boss-dashboard text-white" style={{ marginTop: '20px', padding: '20px', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)' }}>
+      <div className="bg-[#192039] text-white p-6 sm:p-8 rounded-3xl shadow-xl mt-6 border border-slate-700">
         <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '16px', color: '#501b4a' }}>老闆數據分析面板 📊</h2>
         
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
