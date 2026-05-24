@@ -30,7 +30,7 @@ const BrandFooter = () => (
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbz44rH6SVbcFQPUkdoxB7GVyeFuhZ-eO2lKqpYvFI-xDKHs1TP6eeV8HMLy5roCBIGyEQ/exec";
+const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwqK25Usy3S3zW64IsWoSxhQUsA45KE35_RZpocO5XM4r16Y-HRcz5RtUjBT6XLDe-XJA/exec";
 
 // 💰 營收計算單價 (老闆可在此修改每次服務的金額)
 const SESSION_PRICE = 1600; // 每小時價格
