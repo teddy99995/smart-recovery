@@ -1358,8 +1358,8 @@ const handleQuickRebook = (appt) => {
 
       <footer className="w-full flex justify-between items-center px-4 pb-24 pt-4 text-xs text-white/30 relative z-10">
         <p className="mx-auto">© 2026 Smart Recovery</p>
-     <Footer />
-
+     <BrandFooter />
+      </footer>
     </div>
   );
 }
