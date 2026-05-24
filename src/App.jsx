@@ -1358,7 +1358,7 @@ const handleQuickRebook = (appt) => {
 
       <footer className="w-full flex justify-between items-center px-4 pb-24 pt-4 text-xs text-white/30 relative z-10">
         <p className="mx-auto">© 2026 Smart Recovery</p>
-      </footer>
+     <BrandFooter />
 
     </div>
   );
@@ -1427,6 +1427,7 @@ export const BossDashboard = ({ data }) => {
         <div className="bg-[#e3b5a1] text-[#192039] px-4 py-2 rounded-xl font-bold inline-flex items-center gap-2 shadow-md tracking-wider">
   老闆數據分析面板 📊
 </div>
+        
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
           {Object.keys(stats).map(month => (
             <div key={month} style={{ flex: '1', minWidth: '200px', padding: '16px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '8px' }}>
@@ -1438,6 +1439,7 @@ export const BossDashboard = ({ data }) => {
             </div>
           ))}
         </div>
+      </div>
     );
   } catch (err) {
     console.error("Dashboard 渲染錯誤:", err);
