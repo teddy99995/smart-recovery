@@ -1247,6 +1247,8 @@ const handleQuickRebook = (appt) => {
                 追蹤我們的 Instagram
              </a>
           </div>
+          <BrandFooter />
+      </div>
         )}
       </div>
 
@@ -1439,8 +1441,6 @@ export const BossDashboard = ({ data }) => {
             </div>
           ))}
         </div>
-        <BrandFooter />
-      </div>
     );
   } catch (err) {
     console.error("Dashboard 渲染錯誤:", err);
