@@ -1367,8 +1367,17 @@ export default function App() {
                   onChange={(e) => setRebookFormData({ ...rebookFormData, service: e.target.value })}
                 >
                   <option value="">請選擇項目</option>
-                  <option value="運動恢復">運動恢復</option>
+                  <option value="運動後疲勞恢復">運動後疲勞恢復</option>
+                  <option value="深層肌肉與筋膜放鬆">深層肌肉與筋膜放鬆</option>
+                  <option value="動作控制與體態調整">動作控制與體態調整</option>  
+                  <option value="銀髮族活動力促進">銀髮族活動力促進</option> 
+                  <option value="日常肌力與體能訓練">日常肌力與體能訓練</option>  
+                  <option value="專項運動表現優化">專項運動表現優化</option> 
+                  <option value="身體大保養">身體大保養</option>  
+                  <option value="其他">其他</option> 
                   <option value="長照復能">長照復能</option>
+                  <option value="運動恢復">運動恢復</option>
+                  
                 </select>
               </div>
 
