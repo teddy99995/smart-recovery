@@ -22,7 +22,7 @@ try {
 // 品牌聯絡資訊組件
 const BrandFooter = () => (
   <footer className="w-full text-center px-4 py-8 text-xs text-white/40 relative z-10 space-y-1">
-    <p>© 2026 Smart Recovery Studio</p>
+    <p>© 2026 Smart Recovery</p>
     <p>官方聯絡信箱：smartrecovery.studio@gmail.com</p>
     <p>服務預約：請透過上方 LINE 官方帳號</p>
   </footer>
@@ -1248,6 +1248,7 @@ const handleQuickRebook = (appt) => {
              </a>
           </div>
         )}
+        <BrandFooter />
       </div>
 
       {/* === 💰 獨立全螢幕 POS 收銀頁面 === */}
@@ -1358,7 +1359,7 @@ const handleQuickRebook = (appt) => {
 
       <footer className="w-full flex justify-between items-center px-4 pb-24 pt-4 text-xs text-white/30 relative z-10">
         <p className="mx-auto">© 2026 Smart Recovery</p>
-     <BrandFooter />
+     <Footer />
 
     </div>
   );
