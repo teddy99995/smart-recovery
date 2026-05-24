@@ -27,6 +27,7 @@ const BrandFooter = () => (
     <p>服務預約：請透過上方 LINE 官方帳號</p>
   </footer>
 );
+}
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
