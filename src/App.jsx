@@ -19,6 +19,15 @@ try {
   }
 } catch (e) {}
 
+// 品牌聯絡資訊組件
+const BrandFooter = () => (
+  <footer className="w-full text-center px-4 py-8 text-xs text-white/40 relative z-10 space-y-1">
+    <p>© 2026 Smart Recovery Studio</p>
+    <p>官方聯絡信箱：smartrecovery.studio@gmail.com</p>
+    <p>服務預約：請透過上方 LINE 官方帳號</p>
+  </footer>
+);
+
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
@@ -1430,6 +1439,7 @@ export const BossDashboard = ({ data }) => {
             </div>
           ))}
         </div>
+        <BrandFooter />
       </div>
     );
   } catch (err) {
