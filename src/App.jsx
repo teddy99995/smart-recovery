@@ -106,7 +106,7 @@ const formatTimeSlots = (slots) => {
   merged.push(`${currentStart}-${currentEnd}`);
   return merged.join(', ');
 };
-// ✨ 補上這個生成 Google 行事曆連結的函式
+
 const generateGoogleCalendarLink = (dateStr, timeStr, service, advisor) => {
   if (!dateStr || !timeStr) return '#';
   try {
@@ -164,24 +164,26 @@ export default function App() {
     setShowRebookModal(true);
   };
 
-  // === 🚀 新增：自動偵測 LINE 瀏覽器並強制跳轉外部瀏覽器 ===
+  // 🌟 新增：彈出視窗專用的空檔過濾器 (連動顧問與日期)
+  const rebookAvailableSlots = useMemo(() => {
+    if (!rebookFormData.date || !rebookFormData.consultant) return [];
+    const dailySchedule = schedules.find(s => s.advisorId === rebookFormData.consultant && s.date === rebookFormData.date);
+    if (!dailySchedule || !dailySchedule.slots) return [];
+    const bookedSlots = appointments.filter(a => a.advisorId === rebookFormData.consultant && a.date === rebookFormData.date).flatMap(a => a.timeSlots || []);
+    return dailySchedule.slots.filter(slot => !bookedSlots.includes(slot)).sort();
+  }, [rebookFormData.date, rebookFormData.consultant, schedules, appointments]);
+
   useEffect(() => {
-    // 偵測使用者的瀏覽器 User-Agent 是否包含 'Line'
     const isLineApp = navigator.userAgent.includes('Line');
-    // 檢查網址是否已經帶有跳轉參數 (避免無限重新整理)
     const hasExternalParam = window.location.search.includes('openExternalBrowser=1');
 
     if (isLineApp && !hasExternalParam) {
-      // 組合新網址並加上 openExternalBrowser=1 參數
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.set('openExternalBrowser', '1');
-      // 執行跳轉
       window.location.href = newUrl.toString();
     }
   }, []);
-  // ==========================================================
 
-  // 補齊遺失的狀態定義
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleAdvisorId, setScheduleAdvisorId] = useState('');
   const [selectedSlots, setSelectedSlots] = useState([]);
@@ -193,7 +195,7 @@ export default function App() {
   const [adminViewAdvisor, setAdminViewAdvisor] = useState('all');
   const [copiedPhoneId, setCopiedPhoneId] = useState(null);
 
-  const [showHistoryModal, setShowHistoryModal] = useState(null); // 存電話號碼用
+  const [showHistoryModal, setShowHistoryModal] = useState(null); 
 
   const getSavedCustomer = () => {
     try { const saved = localStorage.getItem('smartRecoveryCustomer'); return saved ? JSON.parse(saved) : { name: '', phone: '' }; }
@@ -209,18 +211,16 @@ export default function App() {
   const [successData, setSuccessData] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 後台狀態管理
   const [adminTab, setAdminTab] = useState('appointments');
 
-  // === 💰 櫃檯收銀與獨立分頁狀態 ===
   const [showPOS, setShowPOS] = useState(false);
   const [calcPrice, setCalcPrice] = useState('');
   const [calcDiscount, setCalcDiscount] = useState('10');
   const [calcAdvisor, setCalcAdvisor] = useState('');
   const [revenueRecords, setRevenueRecords] = useState([]);
 
-  // 即時計算應收金額
   const calcFinalAmount = Math.round((Number(calcPrice) || 0) * (Number(calcDiscount) || 10) / 10);
+  
   const exportToGoogleSheets = async () => {
     if (revenueRecords.length === 0) return alert('目前沒有任何營收紀錄可匯出！');
     try {
@@ -240,7 +240,6 @@ export default function App() {
     }
   };
 
-  // 按下確認收款
   const handleConfirmPayment = () => {
     if (!calcPrice || Number(calcPrice) <= 0) return alert('請先輸入有效的服務價格！');
     if (!calcAdvisor) return alert('⚠️ 請先選擇「本次收款人」是誰，才能結帳喔！');
@@ -262,51 +261,67 @@ export default function App() {
     alert(`✅ 收款成功！已入帳 $${calcFinalAmount} 元\n經手人：${advisorName}`);
   };
 
+  const [posSelectedMonth, setPosSelectedMonth] = useState(new Date().toISOString().substring(0, 7)); 
 
-  // === 💰 POS 營收月份選擇與計算 ===
-  const [posSelectedMonth, setPosSelectedMonth] = useState(new Date().toISOString().substring(0, 7)); // 預設為當月 (格式: YYYY-MM)
-
-  // 自動抓取「有收款紀錄的所有月份」(用來產生下拉選單選項)
   const availablePosMonths = useMemo(() => {
     const months = new Set(revenueRecords.map(r => r.date ? r.date.substring(0, 7) : null).filter(Boolean));
-    const monthArray = Array.from(months).sort().reverse(); // 降冪排列，最新的在前面
+    const monthArray = Array.from(months).sort().reverse(); 
     const currentMonthStr = new Date().toISOString().substring(0, 7);
-    // 確保「本月」一定在選單裡，就算還沒有收入
     if (!monthArray.includes(currentMonthStr)) monthArray.unshift(currentMonthStr);
     return monthArray;
   }, [revenueRecords]);
 
-  // 自動計算「選擇月份」的總營收 (只要 revenueRecords 或 posSelectedMonth 改變，這裡就會自動更新)
   const monthlyTotalRevenue = useMemo(() => {
     return revenueRecords
       .filter(record => record.date && record.date.startsWith(posSelectedMonth))
       .reduce((sum, record) => sum + record.finalAmount, 0);
   }, [revenueRecords, posSelectedMonth]);
-  // ===============================
-  // 用來修改預約狀態的函式（完成或取消）
-  const handleUpdateApptStatus = (id, newStatus) => {
-    setAppointments(prev => prev.map(appt =>
-      appt.id === id ? { ...appt, status: newStatus } : appt
+  
+  // 🌟 修復：狀態更新同時觸發 LINE 通知
+  const handleUpdateApptStatus = async (appt, newStatus) => {
+    // 1. 先更新本地畫面
+    setAppointments(prev => prev.map(a =>
+      a.id === appt.id ? { ...a, status: newStatus } : a
     ));
+
+    try {
+      // 2. 正式寫入 Firebase
+      await setDoc(doc(db, "appointments", appt.id), { status: newStatus }, { merge: true });
+
+      // 3. 如果狀態是「已取消」，連動發送 LINE 通知並刪除行事曆
+      if (newStatus === '已取消' && WEBHOOK_URL.startsWith("http")) {
+        fetch(WEBHOOK_URL, {
+          method: 'POST', 
+          mode: 'no-cors', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            action: "cancel", 
+            name: appt.name, 
+            date: appt.date, 
+            time: appt.gasTime || appt.exactDisplayTime, 
+            service: `[${appt.customerType || '預約'}] ${appt.serviceType} (指定：${appt.advisorName})` 
+          }) 
+        });
+      }
+    } catch (error) {
+      alert("狀態更新失敗，請檢查網路連線。");
+    }
   };
-  // ⚡ 快速重新預約功能
+  
   const handleQuickRebook = (appt) => {
     setFormData(prev => ({
       ...prev,
       name: appt.name,
       phone: appt.phone,
-      isFirstTime: 'no' // 自動設為舊客
+      isFirstTime: 'no' 
     }));
-    // 自動捲動到最上方，讓員工可以立即幫客人填寫新日期
     window.scrollTo({ top: 0, behavior: 'smooth' });
     alert(`✅ 已為 ${appt.name} 帶入資料，請直接於上方表格選擇下一次預約時段！`);
   };
 
-  // 📊 老闆營業營收看板狀態
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
   const [selectedAnalyticsAdvisors, setSelectedAnalyticsAdvisors] = useState(TEAM_MEMBERS.map(m => m.id));
 
-  // ✨ AI 狀態管理
   const [aiInput, setAiInput] = useState('');
   const [aiRec, setAiRec] = useState('');
   const [loadingAi, setLoadingAi] = useState(false);
@@ -399,6 +414,7 @@ export default function App() {
     }
   };
 
+  // 🌟 修復：更明確的 AI 錯誤提示
   const generatePostSessionAdvice = async (apptId, customerName, service, note) => {
     setAdviceMap(prev => ({ ...prev, [apptId]: '✨ 正在為客人量身打造課後保養建議...' }));
     const prompt = `您是專業運動恢復顧問。您剛為客人「${customerName}」完成了「${service}」服務。客人備註：「${note || '無'}」。
@@ -407,7 +423,7 @@ export default function App() {
       const advice = await callGeminiAPI(prompt);
       setAdviceMap(prev => ({ ...prev, [apptId]: advice }));
     } catch (e) {
-      setAdviceMap(prev => ({ ...prev, [apptId]: '❌ 產生建議失敗，請稍後再試。' }));
+      setAdviceMap(prev => ({ ...prev, [apptId]: `❌ 產生失敗：${e.message}\n(請至 Vercel 後台確認是否正確設定 VITE_GEMINI_API_KEY)` }));
     }
   };
 
@@ -1027,66 +1043,78 @@ export default function App() {
                       </div>
                     </div>
                   ))}
+                  
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">📅 預約訂單管理</h3>
+                    <div className="space-y-3">
+                      {appointments.filter(appt => appt.date >= `${new Date().toISOString().substring(0, 7)}-01`).length === 0 ? (
+                        <p className="text-slate-500 text-center py-4">本月目前尚無預約記錄</p>
+                      ) : (
+                        appointments.filter(appt => appt.date >= `${new Date().toISOString().substring(0, 7)}-01`).map(appt => (
+                          <div key={appt.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-[#9aa486] transition-colors">
+                            <button
+                              onClick={() => handleOpenRebookModal(appt)}
+                              className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm"
+                            >
+                              <CalendarPlus size={12} /> 現場預約下次
+                            </button>
+
+                            <div className="mb-3 sm:mb-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-bold text-[#192039]">{appt.date}</span>
+                                <span className="text-sm bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium">
+                                  {Array.isArray(appt.timeSlots) ? appt.timeSlots.join(', ') : appt.timeSlots}
+                                </span>
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${appt.status === '已取消' ? 'bg-red-100 text-red-600' : appt.status === '已完成' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                                  {appt.status || '已預約'}
+                                </span>
+                              </div>
+                              <p className="text-sm font-medium text-slate-700">
+                                {appt.name} ({appt.phone}) - <span className="text-[#9aa486]">{appt.serviceType}</span>
+                              </p>
+                              {appt.needs && <p className="text-xs text-slate-500 mt-1">備註: {appt.needs}</p>}
+                            </div>
+                            
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleUpdateApptStatus(appt, '已完成')}
+                                disabled={appt.status === '已完成' || appt.status === '已取消'}
+                                className="px-3 py-1.5 text-sm font-bold rounded-lg bg-[#9aa486] text-white hover:bg-[#868f74] disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                ✓ 完成
+                              </button>
+                              <button
+                                onClick={() => handleUpdateApptStatus(appt, '已取消')}
+                                disabled={appt.status === '已取消'}
+                                className="px-3 py-1.5 text-sm font-bold rounded-lg bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                ✕ 取消
+                              </button>
+                              
+                              {appt.status === '已取消' && (
+                                <button
+                                  onClick={async () => {
+                                    if (window.confirm(`⚠️ 確定要徹底刪除 ${appt.name} 的這筆廢單嗎？(刪除後無法恢復)`)) {
+                                      try {
+                                        await deleteDoc(doc(db, "appointments", appt.id));
+                                      } catch (error) {
+                                        alert("刪除失敗：" + error.message);
+                                      }
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 text-sm font-bold rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 hover:text-rose-600 transition-colors shadow-sm"
+                                >
+                                  🗑️ 刪除
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
-
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-6">
-                <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">📅 預約訂單管理</h3>
-
-                <div className="space-y-3">
-                  {appointments.length === 0 ? (
-                    <p className="text-slate-500 text-center py-4">目前尚無預約記錄</p>
-                  ) : (
-                    appointments.map(appt => (
-                      <div key={appt.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-[#9aa486] transition-colors">
-
-                        <button
-                          onClick={() => handleOpenRebookModal(appt)}
-                          className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm"
-                        >
-                          <CalendarPlus size={12} /> 現場預約下次
-                        </button>
-
-                        <div className="mb-3 sm:mb-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-bold text-[#192039]">{appt.date}</span>
-                            <span className="text-sm bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium">
-                              {Array.isArray(appt.timeSlots) ? appt.timeSlots.join(', ') : appt.timeSlots}
-                            </span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${appt.status === '已取消' ? 'bg-red-100 text-red-600' :
-                              appt.status === '已完成' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
-                              }`}>
-                              {appt.status || '已預約'}
-                            </span>
-                          </div>
-                          <p className="text-sm font-medium text-slate-700">
-                            {appt.name} ({appt.phone}) - <span className="text-[#9aa486]">{appt.serviceType}</span>
-                          </p>
-                          {appt.needs && <p className="text-xs text-slate-500 mt-1">備註: {appt.needs}</p>}
-                        </div>
-
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleUpdateApptStatus(appt.id, '已完成')}
-                            disabled={appt.status === '已完成' || appt.status === '已取消'}
-                            className="px-3 py-1.5 text-sm font-bold rounded-lg bg-[#9aa486] text-white hover:bg-[#868f74] disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            ✓ 完成
-                          </button>
-                          <button
-                            onClick={() => handleUpdateApptStatus(appt.id, '已取消')}
-                            disabled={appt.status === '已取消'}
-                            className="px-3 py-1.5 text-sm font-bold rounded-lg bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            ✕ 取消
-                          </button>
-                        </div>
-
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
 
               {adminTab === 'schedule' && (
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mt-6">
@@ -1338,76 +1366,123 @@ export default function App() {
             {/* 表單內容 */}
             <div className="space-y-4">
               <div>
+                <label className="block text-sm mb-1">指定顧問</label>
+                <select
+                  className="w-full p-2 rounded bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486]"
+                  value={rebookFormData.consultant}
+                  onChange={(e) => setRebookFormData({ ...rebookFormData, consultant: e.target.value, time: "" })}
+                >
+                  <option value="">請選擇顧問</option>
+                  {TEAM_MEMBERS.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-sm mb-1">日期</label>
                 <input
                   type="date"
-                  className="w-full p-2 rounded bg-gray-700 text-white"
+                  className="w-full p-2 rounded bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486]"
                   value={rebookFormData.date}
-                  onChange={(e) => setRebookFormData({ ...rebookFormData, date: e.target.value })}
+                  onChange={(e) => setRebookFormData({ ...rebookFormData, date: e.target.value, time: "" })}
                 />
               </div>
 
               <div>
                 <label className="block text-sm mb-1">時間</label>
-                <select
-                  className="w-full p-2 rounded bg-gray-700 text-white"
-                  value={rebookFormData.time}
-                  onChange={(e) => setRebookFormData({ ...rebookFormData, time: e.target.value })}
-                >
-                  <option value="">請選擇時段</option>
-                  <option value="10:00-11:00">10:00-11:00</option>
-                </select>
+                {!rebookFormData.date || !rebookFormData.consultant ? (
+                  <div className="text-[13px] text-gray-400 bg-gray-800 p-2 rounded text-center border-dashed border border-gray-600">請先選擇上方「顧問」與「日期」</div>
+                ) : rebookAvailableSlots.length === 0 ? (
+                  <div className="text-[13px] text-rose-400 bg-rose-900/20 p-2 rounded text-center">該顧問此日無空檔</div>
+                ) : (
+                  <select 
+                    className="w-full p-2 rounded bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486]"
+                    value={rebookFormData.time}
+                    onChange={(e) => setRebookFormData({...rebookFormData, time: e.target.value})}
+                  >
+                    <option value="">請選擇時段</option>
+                    {rebookAvailableSlots.map(slot => (
+                      <option key={slot} value={slot}>{slot}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm mb-1">預約項目</label>
-                <select
-                  className="w-full p-2 rounded bg-gray-700 text-white"
+                <select 
+                  className="w-full p-2 rounded bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486]"
                   value={rebookFormData.service}
-                  onChange={(e) => setRebookFormData({ ...rebookFormData, service: e.target.value })}
+                  onChange={(e) => setRebookFormData({...rebookFormData, service: e.target.value})}
                 >
                   <option value="">請選擇項目</option>
-                  <option value="運動後疲勞恢復">運動後疲勞恢復</option>
-                  <option value="深層肌肉與筋膜放鬆">深層肌肉與筋膜放鬆</option>
-                  <option value="動作控制與體態調整">動作控制與體態調整</option>  
-                  <option value="銀髮族活動力促進">銀髮族活動力促進</option> 
-                  <option value="日常肌力與體能訓練">日常肌力與體能訓練</option>  
-                  <option value="專項運動表現優化">專項運動表現優化</option> 
-                  <option value="身體大保養">身體大保養</option>  
-                  <option value="其他">其他</option> 
-                  <option value="長照復能">長照復能</option>
-                  <option value="運動恢復">運動恢復</option>
-                  
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm mb-1">指定顧問</label>
-                <select
-                  className="w-full p-2 rounded bg-gray-700 text-white"
-                  value={rebookFormData.consultant}
-                  onChange={(e) => setRebookFormData({ ...rebookFormData, consultant: e.target.value })}
-                >
-                  <option value="">不指定 / 請選擇</option>
-                  <option value="Jerry (恢復顧問)">Jerry (恢復顧問)</option>
-                  <option value="Ted (執行長)">Ted (執行長)</option>
+                  {serviceTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
                 </select>
               </div>
             </div>
 
             {/* 按鈕區 */}
-            <div className="mt-6 flex justify-end space-x-3">
+            <div className="mt-8 flex justify-end space-x-3">
               <button
-                className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-500"
+                className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-500 transition-colors"
                 onClick={() => setShowRebookModal(false)}
               >
                 取消
               </button>
-              <button
-                className="px-4 py-2 bg-green-600 rounded hover:bg-green-500 font-bold"
-                onClick={() => {
-                  console.log("送出預約資料:", rebookCustomer, rebookFormData);
-                  setShowRebookModal(false);
+              <button 
+                className="px-6 py-2 bg-[#9aa486] rounded hover:bg-[#868f74] text-[#192039] font-bold transition-colors"
+                onClick={async () => {
+                  if(!rebookFormData.date || !rebookFormData.time || !rebookFormData.service || !rebookFormData.consultant) {
+                    alert("請填寫完整預約資料！");
+                    return;
+                  }
+
+                  const finalAdvisorName = TEAM_MEMBERS.find(m => m.id === rebookFormData.consultant)?.name || '未指定';
+                  const customerTypeStr = '舊客複診'; 
+
+                  try {
+                    await addDoc(collection(db, "appointments"), {
+                      name: rebookCustomer.name,
+                      phone: rebookCustomer.phone,
+                      isFirstTime: 'no',
+                      advisorId: rebookFormData.consultant,
+                      advisorName: finalAdvisorName,
+                      customerType: customerTypeStr,
+                      serviceType: rebookFormData.service,
+                      date: rebookFormData.date,
+                      timeSlots: [rebookFormData.time], 
+                      exactDisplayTime: rebookFormData.time,
+                      gasTime: rebookFormData.time,
+                      needs: '現場預約下次',
+                      status: 'confirmed',
+                      createdAt: new Date().toISOString()
+                    });
+
+                    if (WEBHOOK_URL.startsWith("http")) {
+                      fetch(WEBHOOK_URL, {
+                        method: 'POST', 
+                        mode: 'no-cors', 
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                          action: "new", 
+                          name: rebookCustomer.name, 
+                          date: rebookFormData.date, 
+                          time: rebookFormData.time, 
+                          service: `[${customerTypeStr}] ${rebookFormData.service} (指定：${finalAdvisorName})`, 
+                          phone: rebookCustomer.phone, 
+                          needs: "現場直接預約下次" 
+                        })
+                      });
+                    }
+
+                    alert("✅ 現場預約大成功！資料已同步至戰情室與 LINE。");
+                    setShowRebookModal(false); 
+                  } catch (error) {
+                    alert("預約失敗，請稍後再試：" + error.message);
+                  }
                 }}
               >
                 確認送出
