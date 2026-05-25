@@ -166,6 +166,11 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginForm, setLoginForm] = useState({ account: 'ted', password: '' });
+  
+  // 修正：忘記密碼功能狀態移入元件內
+  const [showResetPwdModal, setShowResetPwdModal] = useState(false);
+  const [resetForm, setResetForm] = useState({ account: 'jerry', authCode: '', newPwd: '' });
+  
   const [showPwdModal, setShowPwdModal] = useState(false);
   const [userNewPwd, setUserNewPwd] = useState('');
   const [appMode, setAppMode] = useState('booking'); // 'booking', 'tracking', 'admin'
@@ -266,6 +271,7 @@ export default function App() {
   const monthlyTotalRevenue = useMemo(() => {
     return revenueRecords.filter(record => record.date && record.date.startsWith(posSelectedMonth)).reduce((sum, record) => sum + record.finalAmount, 0);
   }, [revenueRecords, posSelectedMonth]);
+
   // Firebase 監聽器
   useEffect(() => {
     const isLineApp = navigator.userAgent.includes('Line');
@@ -357,6 +363,23 @@ export default function App() {
 
   const handleLogout = () => { setCurrentUser(null); setAdminTab('appointments'); setAdditionalDates([]); setRangeStartDate(''); setRangeEndDate(''); };
 
+  // 移入並修正：重設密碼函式
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (resetForm.authCode !== '950901') { 
+      return alert("⚠️ 授權碼錯誤，請聯繫 Ted 執行長！");
+    }
+    const updatedTeam = teamMembers.map(m => 
+      m.id === resetForm.account ? { ...m, pwd: resetForm.newPwd } : m
+    );
+    try {
+      await setDoc(doc(db, "settings", "teamList"), { members: updatedTeam }, { merge: true });
+      alert("✅ 密碼已重設成功！");
+      setShowResetPwdModal(false);
+      setResetForm({ account: 'jerry', authCode: '', newPwd: '' });
+    } catch (err) { alert("重設失敗：" + err.message); }
+  };
+
   const handleUpdatePassword = async (targetId, newPassword) => {
     if (!newPassword.trim()) return alert("密碼不能為空！");
     const updatedTeam = teamMembers.map(m => m.id === targetId ? { ...m, pwd: newPassword.trim() } : m);
@@ -402,12 +425,12 @@ export default function App() {
       await setDoc(doc(db, "settings", "priceList"), updatedList);
     } catch (err) { alert('刪除失敗'); }
   };
+
   // === 購物車與明細操作邏輯 ===
   const handleAddCartItem = (name, price, qty, isBase = false) => {
     setCart(prev => {
       let newCart = [...prev];
       if (isBase) newCart = newCart.filter(item => !item.isBase); // 清除舊的基礎服務
-
       const existingIdx = newCart.findIndex(item => item.name === name && item.price === Number(price));
       if (existingIdx >= 0 && !isBase) {
         newCart[existingIdx].qty += Number(qty);
@@ -430,16 +453,13 @@ export default function App() {
   const handleConfirmPayment = async () => {
     if (cart.length === 0 || cartTotal <= 0) return alert('請先加入商品或服務項目！');
     if (!calcAdvisor) return alert('⚠️ 請先選擇「本次收款人」是誰，才能結帳喔！');
-
     const newRecord = {
       date: new Date().toISOString(),
       originalPrice: cartTotal, discount: Number(calcDiscount),
       finalAmount: calcFinalAmount, advisorId: calcAdvisor,
       items: cart // 將明細存入資料庫
     };
-
     try {
-      // 寫入 Firebase
       await addDoc(collection(db, "revenueRecords"), newRecord);
       setCart([]); setCalcDiscount('10');
       const advisorName = teamMembers.find(m => m.id === calcAdvisor)?.name || '未知';
@@ -456,16 +476,8 @@ export default function App() {
     if (appt.customerType === '初次預約') basePrice = 2000;
     if (appt.timeSlots && appt.timeSlots.length > 2) basePrice += 800 * (appt.timeSlots.length - 2);
 
-    // 將預約資料轉換成第一筆購物車明細
-    setCart([{
-      id: 'base',
-      name: `${appt.serviceType || '服務'} (${appt.name})`,
-      price: basePrice,
-      qty: 1,
-      isBase: true
-    }]);
-    setCalcDiscount('10');
-    setShowPOS(true);
+    setCart([{ id: 'base', name: `${appt.serviceType || '服務'} (${appt.name})`, price: basePrice, qty: 1, isBase: true }]);
+    setCalcDiscount('10'); setShowPOS(true);
   };
 
   const handleUpdateApptStatus = async (appt, newStatus) => {
@@ -522,9 +534,7 @@ export default function App() {
       .filter(([phone, memo]) => memo && memo.includes('【黑名單】'))
       .map(([phone, memo]) => {
         const latestAppt = appointments.find(a => a.phone === phone);
-        return {
-          phone, name: latestAppt ? latestAppt.name : '未知客戶', memo
-        };
+        return { phone, name: latestAppt ? latestAppt.name : '未知客戶', memo };
       });
   }, [customerMemos, appointments]);
 
@@ -601,9 +611,7 @@ export default function App() {
     setConflictError(''); setSuccessData(null);
   };
 
-  const toggleBodyPart = (part) => {
-    setFormData(prev => ({ ...prev, bodyParts: prev.bodyParts.includes(part) ? prev.bodyParts.filter(p => p !== part) : [...prev.bodyParts, part] }));
-  };
+  const toggleBodyPart = (part) => setFormData(prev => ({ ...prev, bodyParts: prev.bodyParts.includes(part) ? prev.bodyParts.filter(p => p !== part) : [...prev.bodyParts, part] }));
 
   const handleDelete = async (appt) => {
     if (window.confirm(`確定要取消 ${appt.name} (${appt.date} ${appt.exactDisplayTime}) 的預約嗎？`)) {
@@ -791,7 +799,8 @@ export default function App() {
         </div>
       </div>
     );
-  };return (
+  };
+  return (
     <div className="min-h-screen bg-[#192039] p-4 md:p-8 font-sans text-slate-800 selection:bg-[#e3b5a1] selection:text-[#192039] flex flex-col relative">
       <button onClick={() => !currentUser ? setShowLoginModal(true) : handleLogout()} className="fixed top-4 left-4 z-50 p-2.5 bg-[#12182c]/80 backdrop-blur-md rounded-full text-white/50 hover:text-[#e3b5a1] border border-white/10 transition-all shadow-md" title={currentUser ? "登出" : "管理員入口"}>
         <Settings size={20} />
@@ -819,6 +828,28 @@ export default function App() {
               </select>
               <input type="password" value={loginForm.password} onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none" required placeholder="輸入密碼" />
               <button type="submit" className="w-full bg-[#192039] text-[#e3b5a1] font-bold py-3.5 rounded-xl shadow-md mt-4">登入系統</button>
+            </form>
+            <button type="button" onClick={() => { setShowLoginModal(false); setShowResetPwdModal(true); }} className="w-full text-xs text-slate-400 hover:text-slate-600 underline mt-2">
+              忘記密碼？點此申請重設
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showResetPwdModal && (
+        <div className="fixed inset-0 bg-[#192039]/80 backdrop-blur-md flex items-center justify-center z-[110] p-4">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl relative">
+            <h2 className="text-xl font-bold text-center text-[#192039] mb-6">申請重設密碼</h2>
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <select value={resetForm.account} onChange={e => setResetForm({...resetForm, account: e.target.value})} className="w-full p-3 bg-slate-50 border rounded-xl font-bold">
+                {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+              <input type="password" placeholder="輸入老闆授權碼" value={resetForm.authCode} onChange={e => setResetForm({...resetForm, authCode: e.target.value})} className="w-full p-3 bg-slate-50 border rounded-xl" required />
+              <input type="text" placeholder="輸入新密碼" value={resetForm.newPwd} onChange={e => setResetForm({...resetForm, newPwd: e.target.value})} className="w-full p-3 bg-slate-50 border rounded-xl" required />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowResetPwdModal(false)} className="flex-1 bg-slate-200 py-3 rounded-xl font-bold">取消</button>
+                <button type="submit" className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold">確認重設</button>
+              </div>
             </form>
           </div>
         </div>
@@ -1057,7 +1088,6 @@ export default function App() {
                   <>
                     <button onClick={() => setAdminTab('analytics')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 ${adminTab === 'analytics' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300'}`}><BarChart size={16} /> 營業營收</button>
                     <button onClick={() => setAdminTab('team')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 ${adminTab === 'team' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300'}`}><UserPlus size={16} /> 團隊管理</button>
-                    {/* 新增：商品設定按鈕 */}
                     <button onClick={() => setAdminTab('prices')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 ${adminTab === 'prices' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300'}`}><ShoppingBag size={16} /> 商品設定</button>
                     <button onClick={() => setAdminTab('blacklist')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 ${adminTab === 'blacklist' ? 'bg-rose-500 text-white' : 'text-slate-300 hover:text-rose-400'}`}><ShieldAlert size={16} /> 黑名單管理</button>
                   </>
@@ -1070,7 +1100,7 @@ export default function App() {
             </button>
 
             {adminTab === 'prices' && currentUser?.role === 'admin' && (
-              <div className="space-y-6 animate-in fade-in">
+              <div className="space-y-6 animate-in fade-in p-6">
                 <div className="flex justify-between items-center border-b pb-4">
                   <h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><ShoppingBag className="text-[#9aa486]" /> 商品與價目表設定</h3>
                 </div>
@@ -1078,7 +1108,6 @@ export default function App() {
                   <p className="text-sm text-slate-500 mb-6">在此設定的商品與價格將會直接連動並顯示在「💰 收銀機」介面中，方便顧問快速點選。</p>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* 基礎服務清單 */}
                     <div>
                       <h4 className="font-bold text-slate-800 mb-3 border-b pb-2 flex items-center gap-2">主打基礎服務</h4>
                       <ul className="space-y-2 mb-4">
@@ -1094,7 +1123,6 @@ export default function App() {
                       </ul>
                     </div>
 
-                    {/* 加價購商品清單 */}
                     <div>
                       <h4 className="font-bold text-slate-800 mb-3 border-b pb-2 flex items-center gap-2">加價購與周邊商品</h4>
                       <ul className="space-y-2 mb-4">
@@ -1111,7 +1139,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* 新增商品表單 */}
                   <div className="mt-8 bg-slate-50 p-5 rounded-2xl border border-slate-200">
                     <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><PlusCircle size={18} className="text-[#e3b5a1]" /> 新增商品項目</h4>
                     <form onSubmit={handleAddProduct} className="flex flex-col sm:flex-row gap-3">
@@ -1130,7 +1157,7 @@ export default function App() {
             )}
 
             {adminTab === 'blacklist' && (
-              <div className="space-y-6 animate-in fade-in">
+              <div className="space-y-6 animate-in fade-in p-6">
                 <div className="flex justify-between items-center border-b pb-4">
                   <h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><ShieldAlert className="text-rose-500" /> 系統黑名單管理</h3>
                 </div>
@@ -1169,7 +1196,7 @@ export default function App() {
             )}
 
             {adminTab === 'team' && currentUser?.role === 'admin' && (
-              <div className="space-y-6 animate-in fade-in">
+              <div className="space-y-6 animate-in fade-in p-6">
                 <div className="flex justify-between items-center border-b pb-4"><h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><UserPlus className="text-[#9aa486]" /> 顧問與團隊管理</h3></div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="bg-white p-6 rounded-2xl shadow-sm border md:col-span-1 h-fit">
@@ -1218,7 +1245,7 @@ export default function App() {
             )}
 
             {adminTab === 'analytics' && currentUser.role === 'admin' && (
-              <div className="space-y-6 animate-in fade-in">
+              <div className="space-y-6 animate-in fade-in p-6">
                 <div className="flex justify-between items-center border-b pb-4"><h3 className="text-xl font-bold flex items-center gap-2"><BarChart className="text-indigo-600" /> 營業營收儀表板</h3></div>
                 <div className="flex gap-4 items-center bg-white p-4 rounded-2xl shadow-sm border">
                   <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="p-2 border rounded-lg font-bold">
@@ -1273,7 +1300,7 @@ export default function App() {
             )}
 
             {adminTab === 'appointments' && (
-              <div className="space-y-4">
+              <div className="space-y-4 p-6">
                 <div className="flex justify-between items-center mb-4 border-b pb-4 gap-4 flex-wrap">
                   <h3 className="text-lg font-bold flex items-center gap-2"><Clipboard className="text-[#9aa486]" /> 預約戰情室</h3>
                   <div className="flex bg-slate-200 p-1 rounded-xl">
@@ -1343,7 +1370,12 @@ export default function App() {
                               <span className="text-sm bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium">{Array.isArray(appt.timeSlots) ? appt.timeSlots.join(', ') : appt.timeSlots}</span>
                               <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${appt.status === '已取消' ? 'bg-red-100 text-red-600' : appt.status === '已完成' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>{appt.status || '已預約'}</span>
                             </div>
-                            <p className="text-sm font-medium text-slate-700">{appt.name} ({appt.phone}) - <span className="text-[#9aa486]">{appt.serviceType}</span></p>
+                            <p className="text-sm font-medium text-slate-700">
+                              {appt.name} ({appt.phone}) - <span className="text-[#9aa486]">{appt.serviceType}</span>
+                              <span className="ml-2 text-[11px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-bold">
+                                指定：{appt.advisorName}
+                              </span>
+                            </p>
                           </div>
                           <div className="flex gap-2">
                             <button onClick={() => handleUpdateApptStatus(appt, '已完成')} disabled={appt.status === '已完成' || appt.status === '已取消'} className="px-3 py-1.5 text-sm font-bold rounded-lg bg-[#9aa486] text-white hover:bg-[#868f74] disabled:opacity-50">✓ 完成</button>
@@ -1363,100 +1395,101 @@ export default function App() {
                 </div>
               </div>
             )}
-{adminTab === 'schedule' && (
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mt-6">
-                  <div className="xl:col-span-7 bg-white p-6 rounded-2xl shadow-sm border h-full flex flex-col">
-                    {currentUser.role === 'admin' && (
-                      <div className="mb-6 pb-6 border-b border-slate-100">
-                        <h3 className="text-[15px] font-bold mb-4 flex items-center gap-2 text-slate-800"><Users size={16} className="text-[#9aa486]" /> 顧問前台顯示狀態 (控制排班系統可見度)</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                          {teamMembers.map(m => {
-                            const isActive = activeAdvisors.includes(m.id);
-                            return (
-                              <div key={m.id} className="flex items-center justify-between bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
-                                <span className="text-[13px] font-bold text-slate-700">{m.name}</span>
-                                <button type="button" onClick={() => handleToggleAdvisor(m.id)} className={`relative w-11 h-6 rounded-full transition-colors flex items-center px-0.5 shadow-inner ${isActive ? 'bg-[#9aa486]' : 'bg-slate-300'}`}>
-                                  <div className={`w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${isActive ? 'translate-x-5' : 'translate-x-0'}`} />
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                      <select value={scheduleAdvisorId} onChange={e => setScheduleAdvisorId(e.target.value)} className="p-3 border border-slate-200 rounded-xl flex-1 font-bold outline-none focus:ring-2 focus:ring-[#e3b5a1]">
-                        {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                      </select>
-                      <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="p-3 border border-slate-200 rounded-xl font-bold outline-none flex-1 sm:flex-none" min={new Date().toISOString().split('T')[0]} />
-                    </div>
-                    {renderTimeSection('早班 (10:00-14:00)', <Sun size={14} />, 10, 14, 'bg-amber-100', 'text-amber-700', 'border-amber-100')}
-                    {renderTimeSection('午班 (14:00-18:00)', <Sun size={14} />, 14, 18, 'bg-orange-100', 'text-orange-700', 'border-orange-100')}
-                    {renderTimeSection('晚班 (18:00-22:00)', <Moon size={14} />, 18, 22, 'bg-indigo-100', 'text-indigo-700', 'border-indigo-100')}
-
-                    <div className="mt-auto border-t border-slate-100 pt-6">
-                      <h4 className="font-bold text-[14px] text-slate-700 mb-3 flex items-center gap-1.5"><Copy size={16} className="text-[#e3b5a1]" /> 快速同步多日排班 (區間與點選)</h4>
-                      <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                        <div className="flex flex-1 gap-2">
-                          <input type="date" value={rangeStartDate} onChange={e => setRangeStartDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-bold focus:ring-2 focus:ring-[#e3b5a1] outline-none w-full" placeholder="開始" />
-                          <input type="date" value={rangeEndDate} onChange={e => setRangeEndDate(e.target.value)} min={rangeStartDate || new Date().toISOString().split('T')[0]} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-bold focus:ring-2 focus:ring-[#e3b5a1] outline-none w-full" placeholder="結束" />
-                        </div>
-                        <button type="button" onClick={handleBatchAddRange} className="bg-[#e3b5a1] hover:bg-[#d6a590] text-[#192039] px-4 py-2 rounded-lg text-[13px] font-bold transition-all flex items-center justify-center gap-1 shadow-sm whitespace-nowrap"><Plus size={14} /> 區間全選</button>
-                      </div>
-                      <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mb-4">
-                        {next28Days.map(dateStr => {
-                          const { date, weekday } = getDayLabel(dateStr);
-                          const isSelected = additionalDates.includes(dateStr);
-                          const isMainDate = dateStr === scheduleDate;
+            
+            {adminTab === 'schedule' && (
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 p-6">
+                <div className="xl:col-span-7 bg-white p-6 rounded-2xl shadow-sm border h-full flex flex-col">
+                  {currentUser.role === 'admin' && (
+                    <div className="mb-6 pb-6 border-b border-slate-100">
+                      <h3 className="text-[15px] font-bold mb-4 flex items-center gap-2 text-slate-800"><Users size={16} className="text-[#9aa486]" /> 顧問前台顯示狀態 (控制排班系統可見度)</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {teamMembers.map(m => {
+                          const isActive = activeAdvisors.includes(m.id);
                           return (
-                            <button key={dateStr} onClick={() => toggleExtraDate(dateStr)} disabled={isMainDate} className={`py-2 rounded-lg border text-xs flex flex-col items-center transition-all ${isMainDate ? 'bg-slate-100 opacity-50 cursor-not-allowed' : isSelected ? 'bg-[#192039] text-[#e3b5a1] border-[#192039] shadow-md scale-105' : 'bg-slate-50 text-slate-500 hover:border-[#9aa486]'}`}>
-                              <span className="opacity-70 mb-0.5 scale-90">週{weekday}</span><span className="font-bold">{date}</span>
-                            </button>
+                            <div key={m.id} className="flex items-center justify-between bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
+                              <span className="text-[13px] font-bold text-slate-700">{m.name}</span>
+                              <button type="button" onClick={() => handleToggleAdvisor(m.id)} className={`relative w-11 h-6 rounded-full transition-colors flex items-center px-0.5 shadow-inner ${isActive ? 'bg-[#9aa486]' : 'bg-slate-300'}`}>
+                                <div className={`w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${isActive ? 'translate-x-5' : 'translate-x-0'}`} />
+                              </button>
+                            </div>
                           );
                         })}
                       </div>
-                      {additionalDates.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                          <span className="text-[12px] text-slate-500 font-bold w-full flex justify-between items-center mb-1">
-                            <span>已選同步日期 ({additionalDates.length} 天)：</span><button type="button" onClick={() => setAdditionalDates([])} className="text-rose-500 hover:underline">全部清空</button>
-                          </span>
-                          {additionalDates.map(d => (
-                            <span key={d} className="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-[12px] font-bold flex items-center gap-1.5 shadow-sm">
-                              {d} <button onClick={() => setAdditionalDates(additionalDates.filter(x => x !== d))} className="text-rose-400 hover:text-rose-600">✕</button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <button onClick={handleSaveSchedule} disabled={isSavingSchedule} className="w-full bg-[#9aa486] hover:bg-[#868f74] text-white font-bold py-4 rounded-xl transition-all shadow-md tracking-wider flex justify-center items-center gap-2">
-                        <CheckCircle size={18} /> 儲存這 {1 + additionalDates.length} 天的排班
-                      </button>
                     </div>
+                  )}
+                  <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                    <select value={scheduleAdvisorId} onChange={e => setScheduleAdvisorId(e.target.value)} className="p-3 border border-slate-200 rounded-xl flex-1 font-bold outline-none focus:ring-2 focus:ring-[#e3b5a1]">
+                      {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                    <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="p-3 border border-slate-200 rounded-xl font-bold outline-none flex-1 sm:flex-none" min={new Date().toISOString().split('T')[0]} />
                   </div>
-                  <div className="xl:col-span-5 bg-slate-100/80 rounded-2xl border border-slate-200 p-5 shadow-inner flex flex-col h-[750px]">
-                    <div className="flex items-center gap-2 mb-5 border-b border-slate-200 pb-4">
-                      <List size={18} className="text-[#8e6856]" /><h3 className="text-[16px] font-bold text-slate-800">班表總覽 ({teamMembers.find(m => m.id === scheduleAdvisorId)?.name})</h3>
-                      <span className="ml-auto text-[11px] bg-slate-200 text-slate-600 px-2 py-1 rounded-md font-bold">未來有 {advisorFutureSchedules.length} 天排班</span>
+                  {renderTimeSection('早班 (10:00-14:00)', <Sun size={14} />, 10, 14, 'bg-amber-100', 'text-amber-700', 'border-amber-100')}
+                  {renderTimeSection('午班 (14:00-18:00)', <Sun size={14} />, 14, 18, 'bg-orange-100', 'text-orange-700', 'border-orange-100')}
+                  {renderTimeSection('晚班 (18:00-22:00)', <Moon size={14} />, 18, 22, 'bg-indigo-100', 'text-indigo-700', 'border-indigo-100')}
+
+                  <div className="mt-auto border-t border-slate-100 pt-6">
+                    <h4 className="font-bold text-[14px] text-slate-700 mb-3 flex items-center gap-1.5"><Copy size={16} className="text-[#e3b5a1]" /> 快速同步多日排班 (區間與點選)</h4>
+                    <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                      <div className="flex flex-1 gap-2">
+                        <input type="date" value={rangeStartDate} onChange={e => setRangeStartDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-bold focus:ring-2 focus:ring-[#e3b5a1] outline-none w-full" placeholder="開始" />
+                        <input type="date" value={rangeEndDate} onChange={e => setRangeEndDate(e.target.value)} min={rangeStartDate || new Date().toISOString().split('T')[0]} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-bold focus:ring-2 focus:ring-[#e3b5a1] outline-none w-full" placeholder="結束" />
+                      </div>
+                      <button type="button" onClick={handleBatchAddRange} className="bg-[#e3b5a1] hover:bg-[#d6a590] text-[#192039] px-4 py-2 rounded-lg text-[13px] font-bold transition-all flex items-center justify-center gap-1 shadow-sm whitespace-nowrap"><Plus size={14} /> 區間全選</button>
                     </div>
-                    <div className="flex-1 overflow-y-auto pr-2 space-y-3">
-                      {advisorFutureSchedules.length === 0 ? (
-                        <div className="text-center text-slate-400 py-32 flex flex-col items-center"><Calendar size={48} className="opacity-20 mb-4" /><p className="font-medium text-[13px]">目前尚無未來的排班</p></div>
-                      ) : (
-                        advisorFutureSchedules.map(sched => (
-                          <div key={sched.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-[#e3b5a1] transition-all relative overflow-hidden">
-                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#9aa486]"></div>
-                            <div className="pl-2">
-                              <p className="font-bold text-[#192039] text-[14px] mb-1">{sched.date}</p>
-                              <p className="text-[11px] text-slate-500 font-medium leading-relaxed max-w-[200px]">{formatTimeSlots(sched.slots)}</p>
-                            </div>
-                            <button onClick={() => handleDeleteFullDay(sched.id, sched.date)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors border border-transparent hover:border-rose-200 shrink-0 shadow-sm" title="刪除這天的班表"><Trash size={14} /></button>
-                          </div>
-                        ))
-                      )}
+                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mb-4">
+                      {next28Days.map(dateStr => {
+                        const { date, weekday } = getDayLabel(dateStr);
+                        const isSelected = additionalDates.includes(dateStr);
+                        const isMainDate = dateStr === scheduleDate;
+                        return (
+                          <button key={dateStr} onClick={() => toggleExtraDate(dateStr)} disabled={isMainDate} className={`py-2 rounded-lg border text-xs flex flex-col items-center transition-all ${isMainDate ? 'bg-slate-100 opacity-50 cursor-not-allowed' : isSelected ? 'bg-[#192039] text-[#e3b5a1] border-[#192039] shadow-md scale-105' : 'bg-slate-50 text-slate-500 hover:border-[#9aa486]'}`}>
+                            <span className="opacity-70 mb-0.5 scale-90">週{weekday}</span><span className="font-bold">{date}</span>
+                          </button>
+                        );
+                      })}
                     </div>
+                    {additionalDates.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span className="text-[12px] text-slate-500 font-bold w-full flex justify-between items-center mb-1">
+                          <span>已選同步日期 ({additionalDates.length} 天)：</span><button type="button" onClick={() => setAdditionalDates([])} className="text-rose-500 hover:underline">全部清空</button>
+                        </span>
+                        {additionalDates.map(d => (
+                          <span key={d} className="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-[12px] font-bold flex items-center gap-1.5 shadow-sm">
+                            {d} <button onClick={() => setAdditionalDates(additionalDates.filter(x => x !== d))} className="text-rose-400 hover:text-rose-600">✕</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <button onClick={handleSaveSchedule} disabled={isSavingSchedule} className="w-full bg-[#9aa486] hover:bg-[#868f74] text-white font-bold py-4 rounded-xl transition-all shadow-md tracking-wider flex justify-center items-center gap-2">
+                      <CheckCircle size={18} /> 儲存這 {1 + additionalDates.length} 天的排班
+                    </button>
                   </div>
                 </div>
-              )}
-            </div>
+                <div className="xl:col-span-5 bg-slate-100/80 rounded-2xl border border-slate-200 p-5 shadow-inner flex flex-col h-[750px]">
+                  <div className="flex items-center gap-2 mb-5 border-b border-slate-200 pb-4">
+                    <List size={18} className="text-[#8e6856]" /><h3 className="text-[16px] font-bold text-slate-800">班表總覽 ({teamMembers.find(m => m.id === scheduleAdvisorId)?.name})</h3>
+                    <span className="ml-auto text-[11px] bg-slate-200 text-slate-600 px-2 py-1 rounded-md font-bold">未來有 {advisorFutureSchedules.length} 天排班</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+                    {advisorFutureSchedules.length === 0 ? (
+                      <div className="text-center text-slate-400 py-32 flex flex-col items-center"><Calendar size={48} className="opacity-20 mb-4" /><p className="font-medium text-[13px]">目前尚無未來的排班</p></div>
+                    ) : (
+                      advisorFutureSchedules.map(sched => (
+                        <div key={sched.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-[#e3b5a1] transition-all relative overflow-hidden">
+                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#9aa486]"></div>
+                          <div className="pl-2">
+                            <p className="font-bold text-[#192039] text-[14px] mb-1">{sched.date}</p>
+                            <p className="text-[11px] text-slate-500 font-medium leading-relaxed max-w-[200px]">{formatTimeSlots(sched.slots)}</p>
+                          </div>
+                          <button onClick={() => handleDeleteFullDay(sched.id, sched.date)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors border border-transparent hover:border-rose-200 shrink-0 shadow-sm" title="刪除這天的班表"><Trash size={14} /></button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {!currentUser && (
@@ -1470,7 +1503,6 @@ export default function App() {
         <BrandFooter />
       </div>
 
-      {/* === 購物車 POS Modal (動態抓取價目表) === */}
       {showPOS && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[200] flex justify-center items-center p-4">
           <div className="bg-white p-6 md:p-8 rounded-2xl w-full max-w-4xl shadow-2xl relative max-h-[95vh] overflow-y-auto">
