@@ -185,9 +185,46 @@ export default function App() {
   const [showPwdModal, setShowPwdModal] = useState(false);
   const [userNewPwd, setUserNewPwd] = useState('');
   const [appMode, setAppMode] = useState('booking'); // 'booking', 'tracking', 'admin'
+  // === 全新 Google 日曆模式狀態 ===
+  const [calViewMode, setCalViewMode] = useState('week'); // 'week' 或 'day'
+  const [calBaseDate, setCalBaseDate] = useState(new Date());
+  // 員工預設看自己，老闆(admin)預設看所有人
+  const [calTargetAdvisor, setCalTargetAdvisor] = useState(currentUser?.role === 'admin' ? 'all' : currentUser?.id);
+  const [currentTimeLine, setCurrentTimeLine] = useState(new Date());
+
+  // 每一格 30 分鐘的高度 (px)
+  const SLOT_HEIGHT = 48; 
+  const START_HOUR = 9; // 從早上 9 點開始繪製
+
+  // 讓系統每分鐘更新一次當前時間（控制紅線移動）
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTimeLine(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 取得畫面上要顯示的日期陣列
+  const getCalendarDays = () => {
+    const dates = [];
+    const base = new Date(calBaseDate);
+    if (calViewMode === 'day') {
+      dates.push(base);
+    } else {
+      const day = base.getDay(); // 0 是週日
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(base);
+        d.setDate(base.getDate() - day + i);
+        dates.push(d);
+      }
+    }
+    return dates;
+  };
+  const calendarDays = getCalendarDays();
+
 
   // === 日曆視圖狀態 ===
   const [calendarDate, setCalendarDate] = useState(new Date());
+  // 新增這行：戰情室當前選擇的日期（預設為今天）
+  const [warRoomDate, setWarRoomDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Modal 彈出視窗與表單管理
   const [showRebookModal, setShowRebookModal] = useState(false);
@@ -556,6 +593,23 @@ const renderCalendarCell = (slot, date, advId) => {
     });
   };
   const displayAppointments = getFilteredAppointments();
+  const handleEmptySlotClick = (dateStr, timeSlot) => {
+    setRebookCustomer({ name: "現場客", phone: "" });
+    
+    // 如果老闆選擇了查看所有人，點擊空白處預設帶入團隊第一人，老闆可以在視窗內改
+    let targetAdv = calTargetAdvisor;
+    if (targetAdv === 'all') {
+      targetAdv = teamMembers.filter(m => activeAdvisors.includes(m.id))[0]?.id || '';
+    }
+
+    setRebookFormData({ 
+      date: dateStr, 
+      time: timeSlot, 
+      service: serviceTypes[0], 
+      consultant: targetAdv || "" 
+    });
+    setShowRebookModal(true);
+  };
 
   const handleOpenRebookModal = (order) => {
     setRebookCustomer({ name: order.name, phone: order.phone });
@@ -1456,86 +1510,139 @@ const renderCalendarCell = (slot, date, advId) => {
               </div>
             )}
 
-            {/* ▼▼▼ 新增的日曆檢視模式區塊 ▼▼▼ */}
+           {/* ▼▼▼ Google Calendar 樣式戰情室 ▼▼▼ */}
             {adminTab === 'calendar' && (
-              <div className="space-y-4 p-6 animate-in fade-in h-full flex flex-col min-h-[750px]">
-                <div className="flex justify-between items-center mb-4 border-b pb-4">
-                  <h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><Calendar className="text-[#9aa486]" /> 日曆檢視模式</h3>
-                  
-                  {/* 月份切換控制器 */}
-                  <div className="flex items-center gap-4 bg-slate-100 p-1.5 rounded-xl">
-                    <button 
-                      onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1))} 
-                      className="p-2 bg-white rounded-lg shadow-sm hover:bg-slate-50 text-slate-600 font-bold"
-                    >
-                      &lt; 上個月
+              <div className="space-y-4 p-4 md:p-6 animate-in fade-in h-full flex flex-col min-h-[750px]">
+                {/* 頂部工具列 */}
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-200 pb-4">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setCalBaseDate(new Date())} className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+                      今天
                     </button>
-                    <span className="font-extrabold text-slate-700 min-w-[100px] text-center">
-                      {calendarDate.getFullYear()} 年 {calendarDate.getMonth() + 1} 月
-                    </span>
-                    <button 
-                      onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1))} 
-                      className="p-2 bg-white rounded-lg shadow-sm hover:bg-slate-50 text-slate-600 font-bold"
-                    >
-                      下個月 &gt;
-                    </button>
+                    <div className="flex bg-slate-100 rounded-lg p-1">
+                      <button onClick={() => setCalBaseDate(new Date(calBaseDate.setDate(calBaseDate.getDate() - (calViewMode === 'week' ? 7 : 1))))} className="p-1.5 rounded text-slate-500 hover:bg-white hover:shadow-sm transition-all">&lt;</button>
+                      <button onClick={() => setCalBaseDate(new Date(calBaseDate.setDate(calBaseDate.getDate() + (calViewMode === 'week' ? 7 : 1))))} className="p-1.5 rounded text-slate-500 hover:bg-white hover:shadow-sm transition-all">&gt;</button>
+                    </div>
+                    <h3 className="text-lg font-extrabold text-slate-700 min-w-[150px]">
+                      {calBaseDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-3 w-full lg:w-auto">
+                    {/* 權限控管：只有老闆可以看所有人，員工只能看自己 */}
+                    {currentUser?.role === 'admin' && (
+                      <select value={calTargetAdvisor} onChange={(e) => setCalTargetAdvisor(e.target.value)} className="p-2 text-sm font-bold border border-slate-200 rounded-lg outline-none bg-white shadow-sm flex-1 lg:flex-none">
+                        <option value="all">👥 查看全團隊</option>
+                        {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </select>
+                    )}
+                    <div className="flex bg-slate-100 rounded-lg p-1 shrink-0">
+                      <button onClick={() => setCalViewMode('week')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${calViewMode === 'week' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>週</button>
+                      <button onClick={() => setCalViewMode('day')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${calViewMode === 'day' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>日</button>
+                    </div>
                   </div>
                 </div>
 
-                {/* 日曆星期標題 */}
-                <div className="grid grid-cols-7 gap-2 text-center font-bold text-slate-400 mb-2">
-                  {['日', '一', '二', '三', '四', '五', '六'].map(d => <div key={d}>{d}</div>)}
-                </div>
+                {/* 網格區塊 (時間軸 + 日期欄) */}
+                <div className="flex-1 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-sm flex custom-scrollbar relative">
+                  
+                  {/* 左側：固定時間軸 */}
+                  <div className="w-16 shrink-0 border-r border-slate-200 bg-slate-50/50 pt-10">
+                    {ALL_TIME_SLOTS.map((slot, i) => (
+                      <div key={i} className="relative border-b border-slate-100 text-right pr-2 text-[10px] font-bold text-slate-400" style={{ height: `${SLOT_HEIGHT}px` }}>
+                        <span className="absolute -top-2.5 right-2 bg-slate-50 px-1">{slot.split('-')[0]}</span>
+                      </div>
+                    ))}
+                  </div>
 
-                {/* 日曆網格 */}
-                <div className="grid grid-cols-7 gap-2 flex-1 auto-rows-[minmax(100px,_1fr)]">
-                  {(() => {
-                    const year = calendarDate.getFullYear();
-                    const month = calendarDate.getMonth();
-                    const daysInMonth = new Date(year, month + 1, 0).getDate();
-                    const firstDay = new Date(year, month, 1).getDay();
-                    const todayStr = new Date().toISOString().split('T')[0];
+                  {/* 右側：可滾動的日期欄位 */}
+                  <div className="flex-1 flex overflow-x-auto min-w-[600px]">
+                    {calendarDays.map((d, index) => {
+                      const dateStr = d.toISOString().split('T')[0];
+                      const isToday = dateStr === new Date().toISOString().split('T')[0];
+                      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-                    // 產生包含前方空白格與當月天數的陣列
-                    const daysArray = Array.from({ length: firstDay }, () => null)
-                      .concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
+                      // 篩選出該日的預約
+                      const dayAppts = appointments.filter(a => {
+                        if (a.date !== dateStr || a.status === '已取消') return false;
+                        if (calTargetAdvisor !== 'all' && a.advisorId !== calTargetAdvisor) return false;
+                        return true;
+                      });
 
-                    return daysArray.map((day, idx) => {
-                      if (!day) return <div key={`empty-${idx}`} className="bg-slate-50/50 rounded-xl border border-dashed border-slate-200"></div>;
-
-                      // 組裝該格子的日期字串 (YYYY-MM-DD)
-                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                      
-                      // 過濾出這一天的所有未取消預約
-                      const dayAppts = appointments.filter(a => a.date === dateStr && a.status !== '已取消');
+                      // 計算當前時間紅線高度
+                      const nowHour = currentTimeLine.getHours();
+                      const nowMin = currentTimeLine.getMinutes();
+                      const nowTop = ((nowHour - START_HOUR) * 2 + (nowMin / 30)) * SLOT_HEIGHT;
+                      const showNowLine = isToday && nowHour >= START_HOUR && nowHour < 22;
 
                       return (
-                        <div key={day} className={`bg-white rounded-xl border p-2 flex flex-col hover:border-[#9aa486] transition-colors shadow-sm overflow-hidden ${dateStr === todayStr ? 'border-[#e3b5a1] ring-2 ring-[#e3b5a1]/30' : 'border-slate-200'}`}>
-                          <span className={`text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full mb-1 ${dateStr === todayStr ? 'bg-[#192039] text-[#e3b5a1]' : 'text-slate-700'}`}>
-                            {day}
-                          </span>
+                        <div key={dateStr} className="flex-1 min-w-[120px] border-r border-slate-200 relative">
                           
-                          {/* 該天的預約列表 */}
-                          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
-                            {dayAppts.map(appt => (
-                              <div 
-                                key={appt.id} 
-                                onClick={() => handleOpenRebookModal(appt)} 
-                                className={`text-[11px] border px-1.5 py-1 rounded cursor-pointer font-bold truncate transition-colors ${appt.customerType === '初次預約' ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100' : 'bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-100'}`} 
-                                title={`${appt.exactDisplayTime} | ${appt.name} | 顧問:${appt.advisorName}`}
-                              >
-                                {appt.exactDisplayTime.split('-')[0]} {appt.name}
+                          {/* 頂部日期標題 */}
+                          <div className={`h-10 border-b border-slate-200 flex flex-col items-center justify-center sticky top-0 bg-white/90 backdrop-blur z-20 ${isToday ? 'text-indigo-600' : 'text-slate-500'}`}>
+                            <span className="text-[10px] font-bold uppercase">{dayNames[d.getDay()]}</span>
+                            <span className={`text-[15px] font-extrabold ${isToday ? 'bg-indigo-600 text-white w-7 h-7 rounded-full flex items-center justify-center' : ''}`}>
+                              {d.getDate()}
+                            </span>
+                          </div>
+
+                          {/* 日曆背景格子 (點擊代客預約) */}
+                          <div className="relative w-full">
+                            {ALL_TIME_SLOTS.map((slot) => {
+                              // 檢查是否為排班時間 (若是排班，給予微綠底色)
+                              const isWorking = schedules.find(s => s.date === dateStr && (calTargetAdvisor === 'all' || s.advisorId === calTargetAdvisor))?.slots?.includes(slot);
+                              return (
+                                <div 
+                                  key={slot} 
+                                  onClick={() => handleEmptySlotClick(dateStr, slot)}
+                                  className={`border-b border-slate-100 cursor-pointer hover:bg-indigo-50 transition-colors ${isWorking ? 'bg-[#9aa486]/5' : ''}`}
+                                  style={{ height: `${SLOT_HEIGHT}px` }} 
+                                />
+                              );
+                            })}
+
+                            {/* 預約事件方塊 (絕對定位) */}
+                            {dayAppts.map(appt => {
+                              if (!appt.timeSlots || appt.timeSlots.length === 0) return null;
+                              const sortedSlots = [...appt.timeSlots].sort();
+                              const startSlot = sortedSlots[0];
+                              const [startHr, startMin] = startSlot.split('-')[0].split(':');
+                              
+                              const top = ((parseInt(startHr) - START_HOUR) * 2 + (parseInt(startMin) === 30 ? 1 : 0)) * SLOT_HEIGHT;
+                              const height = sortedSlots.length * SLOT_HEIGHT;
+                              const isFirstTime = appt.customerType === '初次預約';
+
+                              return (
+                                <div 
+                                  key={appt.id} 
+                                  onClick={(e) => { e.stopPropagation(); handleOpenRebookModal(appt); }}
+                                  className={`absolute left-1 right-1 rounded-md p-1.5 text-xs shadow-sm cursor-pointer overflow-hidden border transition-all hover:shadow-md hover:scale-[1.02] ${
+                                    isFirstTime ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-indigo-500 border-indigo-600 text-white'
+                                  }`}
+                                  style={{ top: `${top}px`, height: `${height - 2}px`, zIndex: 10 }}
+                                >
+                                  <div className="font-bold truncate">{appt.name}</div>
+                                  <div className="opacity-80 text-[10px] truncate">{appt.serviceType}</div>
+                                  {calTargetAdvisor === 'all' && <div className="mt-1 opacity-70 text-[9px] truncate">({appt.advisorName})</div>}
+                                </div>
+                              );
+                            })}
+
+                            {/* 走時紅線 */}
+                            {showNowLine && (
+                              <div className="absolute left-0 right-0 h-[2px] bg-red-500 z-30 pointer-events-none" style={{ top: `${nowTop}px` }}>
+                                <div className="absolute -left-1.5 -top-1.5 w-3 h-3 bg-red-500 rounded-full shadow-sm"></div>
                               </div>
-                            ))}
+                            )}
                           </div>
                         </div>
                       );
-                    });
-                  })()}
+                    })}
+                  </div>
                 </div>
               </div>
             )}
-            {/* ▲▲▲ 日曆檢視模式區塊結束 ▲▲▲ */}
+            {/* ▲▲▲ Google Calendar 樣式戰情室結束 ▲▲▲ */}
 
             {/* ▼▼▼ 原本的排班系統區塊 ▼▼▼ */}
             {adminTab === 'schedule' && (
@@ -1743,18 +1850,37 @@ const renderCalendarCell = (slot, date, advId) => {
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
           <div className="bg-[#1E293B] text-white p-6 rounded-2xl w-full max-w-md shadow-2xl relative">
             <button onClick={() => setShowRebookModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
-            <h2 className="text-xl font-bold mb-4 border-b border-gray-600 pb-4 flex items-center gap-2"><CalendarPlus className="text-[#9aa486]" /> 為 {rebookCustomer.name} 預約下次</h2>
+            
+            {/* 修正 1：移除了多餘的 < 符號 */}
+            <h2 className="text-xl font-bold mb-4 border-b border-gray-600 pb-4 flex items-center gap-2">
+              <CalendarPlus className="text-[#9aa486]" /> 內部代客預約
+            </h2>
+            
             <div className="space-y-4">
+              {/* 修正 2：姓名與電話輸入框 (刪除重複，只保留一組) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm mb-1.5 text-slate-300">客人姓名 *</label>
+                  <input type="text" className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookCustomer.name} onChange={(e) => setRebookCustomer({...rebookCustomer, name: e.target.value})} placeholder="例如: 王大明" />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1.5 text-slate-300">聯絡電話</label>
+                  <input type="tel" className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookCustomer.phone} onChange={(e) => setRebookCustomer({...rebookCustomer, phone: e.target.value})} placeholder="09XX..." />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-sm mb-1.5 text-slate-300">指定顧問 (已為您帶入原本顧問)</label>
+                <label className="block text-sm mb-1.5 text-slate-300">指定顧問 (已為您帶入)</label>
                 <select className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.consultant} onChange={(e) => setRebookFormData({ ...rebookFormData, consultant: e.target.value, time: "" })}>
                   <option value="">請選擇顧問</option>{teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
               </div>
+              
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">選擇日期</label>
                 <input type="date" min={new Date().toISOString().split('T')[0]} className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.date} onChange={(e) => setRebookFormData({ ...rebookFormData, date: e.target.value, time: "" })} />
               </div>
+              
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">選擇時間</label>
                 {!rebookFormData.date || !rebookFormData.consultant ? (
@@ -1767,6 +1893,7 @@ const renderCalendarCell = (slot, date, advId) => {
                   </select>
                 )}
               </div>
+              
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">預約項目 (已為您帶入上次項目)</label>
                 <select className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.service} onChange={(e) => setRebookFormData({...rebookFormData, service: e.target.value})}>
@@ -1774,6 +1901,7 @@ const renderCalendarCell = (slot, date, advId) => {
                 </select>
               </div>
             </div>
+            
             <div className="mt-8 flex justify-end space-x-3">
               <button className="px-4 py-2.5 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors text-sm font-bold" onClick={() => setShowRebookModal(false)}>取消</button>
               <button className="px-6 py-2.5 bg-[#9aa486] rounded-lg hover:bg-[#868f74] text-[#192039] font-bold transition-colors shadow-lg" onClick={async () => {
@@ -1798,6 +1926,6 @@ const renderCalendarCell = (slot, date, advId) => {
           </div>
         </div>
       )}
-    </div>
-  );
-}
+      </div>  
+  );  
+  }
