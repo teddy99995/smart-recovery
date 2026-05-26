@@ -63,7 +63,6 @@ const formatTimeSlots = (slots) => {
   merged.push(`${currentStart}-${currentEnd}`); return merged.join(', ');
 };
 const getDayLabel = (dateStr) => { const d = new Date(dateStr); const days = ['日', '一', '二', '三', '四', '五', '六']; return { date: `${d.getMonth() + 1}/${d.getDate()}`, weekday: days[d.getDay()] }; };
-
 const BrandFooter = () => (
   <footer className="w-full text-center px-4 py-8 text-xs text-white/40 relative z-10 space-y-1">
     <p>© 2026 Smart Recovery</p>
@@ -131,8 +130,8 @@ const AdminCalendarView = ({ appointments, onSelectSlot, onSelectEvent }) => {
     return { id: appt.id, title: `${appt.name} (${appt.advisorName})`, start: new Date(`${appt.date}T${startStr}:00`), end: new Date(`${appt.date}T${endStr}:00`), resource: appt };
   }).filter(Boolean);
 
-  const minTime = new Date(); minTime.setHours(09, 0, 0); // 營業開始時間 09:00
-  const maxTime = new Date(); maxTime.setHours(22, 3, 0); // 營業結束時間 22:30
+  const minTime = new Date(); minTime.setHours(10, 0, 0); // 營業開始時間 10:00
+  const maxTime = new Date(); maxTime.setHours(22, 0, 0); // 營業結束時間 22:00
 
   return (
     <div className="h-[750px] bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
@@ -251,8 +250,7 @@ export default function App() {
 
   useEffect(() => { setSelectedAnalyticsAdvisors(teamMembers.map(m => m.id)); }, [teamMembers]);
   useEffect(() => { if (scheduleAdvisorId && scheduleDate) { const existing = schedules.find(s => s.advisorId === scheduleAdvisorId && s.date === scheduleDate); setSelectedSlots(existing ? existing.slots : []); setAdditionalDates([]); } }, [scheduleAdvisorId, scheduleDate, schedules]);
-
-const handleLogin = (e) => { e.preventDefault(); const user = teamMembers.find(u => u.id === loginForm.account && u.pwd === loginForm.password); if (user) { setCurrentUser(user); setScheduleAdvisorId(user.id); setShowLoginModal(false); setAdminTab('appointments'); } else { alert("密碼錯誤！"); } };
+  const handleLogin = (e) => { e.preventDefault(); const user = teamMembers.find(u => u.id === loginForm.account && u.pwd === loginForm.password); if (user) { setCurrentUser(user); setScheduleAdvisorId(user.id); setShowLoginModal(false); setAdminTab('appointments'); } else { alert("密碼錯誤！"); } };
   const handleResetPassword = async (e) => { e.preventDefault(); if (resetForm.authCode !== '950901') return alert("⚠️ 授權碼錯誤"); const updatedTeam = teamMembers.map(m => m.id === resetForm.account ? { ...m, pwd: resetForm.newPwd } : m); try { await setDoc(doc(db, "settings", "teamList"), { members: updatedTeam }, { merge: true }); alert("✅ 密碼重設成功！"); setShowResetPwdModal(false); } catch (err) { alert("失敗：" + err.message); } };
   const handleUpdatePassword = async (targetId, newPassword) => { if (!newPassword.trim()) return alert("密碼不能為空！"); const updatedTeam = teamMembers.map(m => m.id === targetId ? { ...m, pwd: newPassword.trim() } : m); try { await setDoc(doc(db, "settings", "teamList"), { members: updatedTeam }, { merge: true }); alert("✅ 密碼更新成功！"); if (currentUser.id === targetId) { setCurrentUser(prev => ({ ...prev, pwd: newPassword.trim() })); setShowPwdModal(false); } } catch (err) { alert("更新失敗：" + err.message); } };
 
@@ -293,8 +291,7 @@ const handleLogin = (e) => { e.preventDefault(); const user = teamMembers.find(u
     });
     return { kpi, advisorStats };
   }, [appointments, selectedMonth, selectedAnalyticsAdvisors, currentUser]);
-
-return (
+  return (
     <div className="min-h-screen bg-[#192039] p-4 md:p-8 flex flex-col font-sans relative">
       <button onClick={() => setShowLoginModal(true)} className="fixed top-4 left-4 z-50 p-2 bg-white/10 rounded-full text-white/50 hover:text-white transition-colors"><Settings size={20} /></button>
       
@@ -397,7 +394,6 @@ return (
           </div>
         </div>
       )}
-
       {currentUser ? (
         <AdminLayout currentUser={currentUser} onLogout={() => setCurrentUser(null)} currentTab={adminTab} setCurrentTab={setAdminTab}>
           
