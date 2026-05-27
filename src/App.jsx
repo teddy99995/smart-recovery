@@ -51,10 +51,6 @@ const BrandFooter = () => (
   </footer>
 );
 
-// === 安全模式與登入狀態 ===
-  const [isAdminHidden, setIsAdminHidden] = useState(false);
-  const [isManualLogin, setIsManualLogin] = useState(false); // 控制登入時是否手動輸入帳號
-
 // 老闆營收分析組件
 export const getBossAnalytics = (records) => {
   if (!records || !Array.isArray(records)) return {};
@@ -175,6 +171,10 @@ export default function App() {
   const [schedules, setSchedules] = useState([]);
   const [customerMemos, setCustomerMemos] = useState({});
 
+  // === 安全模式與登入狀態 (移到這裡！) ===
+  const [isAdminHidden, setIsAdminHidden] = useState(false);
+  const [isManualLogin, setIsManualLogin] = useState(false);
+  
   // 團隊管理與身分驗證
   const [teamMembers, setTeamMembers] = useState(DEFAULT_TEAM);
   const [activeAdvisors, setActiveAdvisors] = useState(DEFAULT_TEAM.map(m => m.id));
