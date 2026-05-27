@@ -2007,7 +2007,7 @@ const handleDeleteAdvisor = async (id, name) => {
               >
                 取消
               </button>
-              <button 
+             <button 
                 className="px-6 py-2.5 bg-[#9aa486] rounded-lg hover:bg-[#868f74] text-[#192039] font-bold transition-colors shadow-lg" 
                 onClick={async () => {
                   // 1. 表單驗證
@@ -2068,7 +2068,8 @@ const handleDeleteAdvisor = async (id, name) => {
               </button>
             </div>
           </div>
-  </div>
+        </div>
       )}
     </div>
-  )
+  );
+}
