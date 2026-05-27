@@ -1893,18 +1893,14 @@ const handleDeleteAdvisor = async (id, name) => {
         </div>
       )}
 
-      {showRebookModal && (
+   {showRebookModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
           <div className="bg-[#1E293B] text-white p-6 rounded-2xl w-full max-w-md shadow-2xl relative">
             <button onClick={() => setShowRebookModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
-            
-            {/* 修正 1：移除了多餘的 < 符號 */}
             <h2 className="text-xl font-bold mb-4 border-b border-gray-600 pb-4 flex items-center gap-2">
               <CalendarPlus className="text-[#9aa486]" /> 內部代客預約
             </h2>
-            
             <div className="space-y-4">
-              {/* 修正 2：姓名與電話輸入框 (刪除重複，只保留一組) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm mb-1.5 text-slate-300">客人姓名 *</label>
@@ -1915,19 +1911,16 @@ const handleDeleteAdvisor = async (id, name) => {
                   <input type="tel" className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookCustomer.phone} onChange={(e) => setRebookCustomer({...rebookCustomer, phone: e.target.value})} placeholder="09XX..." />
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">指定顧問 (已為您帶入)</label>
                 <select className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.consultant} onChange={(e) => setRebookFormData({ ...rebookFormData, consultant: e.target.value, time: "" })}>
                   <option value="">請選擇顧問</option>{teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
               </div>
-              
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">選擇日期</label>
                 <input type="date" min={new Date().toISOString().split('T')[0]} className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.date} onChange={(e) => setRebookFormData({ ...rebookFormData, date: e.target.value, time: "" })} />
               </div>
-              
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">選擇時間</label>
                 {!rebookFormData.date || !rebookFormData.consultant ? (
@@ -1940,7 +1933,6 @@ const handleDeleteAdvisor = async (id, name) => {
                   </select>
                 )}
               </div>
-              
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">預約項目 (已為您帶入上次項目)</label>
                 <select className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.service} onChange={(e) => setRebookFormData({...rebookFormData, service: e.target.value})}>
@@ -1973,6 +1965,6 @@ const handleDeleteAdvisor = async (id, name) => {
           </div>
         </div>
       )}
-      </div>  
-  );  
-  }
+    </div>
+  );
+}
