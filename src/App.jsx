@@ -358,6 +358,7 @@ const renderCalendarCell = (slot, date, advId) => {
       newUrl.searchParams.set('openExternalBrowser', '1');
       window.location.href = newUrl.toString();
     }
+    }, []);
 
     const unsubAppt = onSnapshot(query(collection(db, "appointments")), (snapshot) => {
       const appts = [];
