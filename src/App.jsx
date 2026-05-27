@@ -53,7 +53,7 @@ const BrandFooter = () => (
 
 // 免責聲明與預約須知組件 (長輩友善大字體)
 const BookingDisclaimer = () => (
-  <div className="bg-[#f4faec] border border-[#9aa486] rounded-2xl p-5 sm:p-6 mb-8 shadow-sm text-slate-700">
+  <div className="bg-[#f4faec] border border-[#9aa486] rounded-2xl p-5 sm:p-6 mb-6 shadow-sm text-slate-700 text-left">
     <h3 className="text-xl font-bold text-[#192039] mb-4 flex items-center gap-2">
       🌿 智理 Smart Recovery 專屬預約小叮嚀
     </h3>
@@ -1062,9 +1062,6 @@ export default function App() {
               <button onClick={() => setAppMode('tracking')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${appMode === 'tracking' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-white/50 hover:text-white/80'}`}>我的預約查詢</button>
             </div>
 
-            {/* 新增的大字體免責聲明組件，放在表單填寫區最上方 */}
-            {appMode === 'booking' && <BookingDisclaimer />}
-
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5">
               <div>
                 <label className="block text-base font-bold text-slate-700 mb-2 flex items-center gap-2">
@@ -1125,11 +1122,15 @@ export default function App() {
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">指定顧問</span><span className="text-slate-800 font-bold text-base">{successData?.advisor || '無'}</span></div>
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">預約日期</span><span className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-md text-base font-bold">{successData?.date || '無'}</span></div>
                         <div className="flex justify-between items-center pb-1"><span className="text-slate-500 text-base">預約時間</span><span className="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-md text-base font-bold">{successData?.time || '無'}</span></div>
-                      </div>
-                    </div>
-                    <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="w-full bg-[#06C755] text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 mb-4"><MessageCircle size={24} /> 加入 LINE 官方帳號</a>
-                    <button onClick={() => setSuccessData(null)} className="text-base text-slate-400 underline mt-2">返回首頁</button>
-                  </div>
+              </div>
+            </div>
+
+            {/* 👇👇👇 將小叮嚀加在這裡 👇👇👇 */}
+            <BookingDisclaimer />
+
+            <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="w-full bg-[#06C755] text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 mb-4"><MessageCircle size={24} /> 點擊加入 LINE 官方帳號確認</a>
+            <button onClick={() => setSuccessData(null)} className="text-base text-slate-400 underline mt-2">返回首頁</button>
+          </div>
                 ) : (
                   <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 relative">
                     <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#9aa486] to-[#e3b5a1]"></div>
