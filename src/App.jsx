@@ -2067,8 +2067,7 @@ const handleDeleteAdvisor = async (id, name) => {
               </button>
             </div>
           </div>
-        </div>
+  </div>
       )}
     </div>
-  );
-}
+  )
