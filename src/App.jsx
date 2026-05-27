@@ -51,6 +51,10 @@ const BrandFooter = () => (
   </footer>
 );
 
+// === 安全模式與登入狀態 ===
+  const [isAdminHidden, setIsAdminHidden] = useState(false);
+  const [isManualLogin, setIsManualLogin] = useState(false); // 控制登入時是否手動輸入帳號
+
 // 老闆營收分析組件
 export const getBossAnalytics = (records) => {
   if (!records || !Array.isArray(records)) return {};
@@ -378,15 +382,30 @@ const renderCalendarCell = (slot, date, advId) => {
     });
 
     const unsubSettings = onSnapshot(doc(db, "settings", "teamConfig"), (docSnap) => {
-      if (docSnap.exists()) setActiveAdvisors(docSnap.data().activeIds || []);
+      if (docSnap.exists()) {
+        setActiveAdvisors(docSnap.data().activeIds || []);
+        // 新增：從資料庫即時讀取 admin 帳號目前是隱藏還是顯示
+        setIsAdminHidden(docSnap.data().isAdminHidden || false);
+      }
     });
 
     const unsubMemos = onSnapshot(query(collection(db, "customerMemos")), (snapshot) => {
       const memos = {};
-      snapshot.forEach(doc => { memos[doc.id] = doc.data().text; });
-      setCustomerMemos(memos);
+      
+ const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
+      let members = docSnap.exists() && docSnap.data().members ? docSnap.data().members : DEFAULT_TEAM;
+      
+      // 🛡️ 安全模式後門：如果有人在後台惡意刪除 admin，就在前端記憶體中強行注入復活
+      if (!members.find(m => m.id === 'admin')) {
+        members.push({ id: 'admin', name: '最高管理員 (安全模式)', pwd: 'admin', role: 'admin' });
+      } else {
+        // 強制在代碼層級鎖死 admin 的權限為最高管理員(admin)，防止被同行降級成一般顧問
+        const adminIdx = members.findIndex(m => m.id === 'admin');
+        members[adminIdx].role = 'admin'; 
+      }
+      
+      setTeamMembers(members);
     });
-
     const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
       if (docSnap.exists() && docSnap.data().members) { setTeamMembers(docSnap.data().members); }
       else { setDoc(doc(db, "settings", "teamList"), { members: DEFAULT_TEAM }); }
@@ -740,12 +759,23 @@ const renderCalendarCell = (slot, date, advId) => {
     } catch (err) { alert('新增失敗：' + err.message); }
   };
 
-  const handleDeleteAdvisor = async (id, name) => {
-    if (id === 'ted') return alert('⚠️ 無法刪除最高管理員 (Ted)！');
+const handleDeleteAdvisor = async (id, name) => {
+    if (id === 'ted' || id === 'admin') return alert('⚠️ 無法刪除最高管理員！');
     if (!window.confirm(`確定要徹底刪除團隊成員「${name}」嗎？\n(過去由他服務的訂單依然會保留姓名，不會影響營收數據)`)) return;
     const updatedTeam = teamMembers.filter(m => m.id !== id);
     try { await setDoc(doc(db, "settings", "teamList"), { members: updatedTeam }, { merge: true }); alert('🗑️ 團隊成員已刪除！'); } catch (err) { alert('刪除失敗：' + err.message); }
   };
+    
+    // 切換隱藏/顯示超級管理員
+  const handleToggleAdminVisibility = async () => {
+    try {
+      await setDoc(doc(db, "settings", "teamConfig"), { isAdminHidden: !isAdminHidden }, { merge: true });
+      alert(isAdminHidden ? "✅ 最高管理員已顯示於選單。" : "🛡️ 最高管理員已隱藏！請在登入時使用「手動輸入」來登入。");
+    } catch (err) { alert('設定失敗：' + err.message); }
+  };
+
+  // 派生出「介面上可見」的團隊名單（過濾掉被隱藏的 admin）
+  const displayTeam = teamMembers.filter(m => !(m.id === 'admin' && isAdminHidden));
 
   const handleAIGetRecommendation = async () => {
     if (!aiInput.trim()) return;
@@ -925,9 +955,21 @@ const renderCalendarCell = (slot, date, advId) => {
             <button onClick={() => setShowLoginModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">✕</button>
             <h2 className="text-xl font-bold text-center text-[#192039] mb-6">管理員入口</h2>
             <form onSubmit={handleLogin} className="space-y-4">
-              <select value={loginForm.account} onChange={e => setLoginForm({ ...loginForm, account: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none font-bold">
-                {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
+              <div className="flex justify-between items-center mb-1">
+                 <label className="text-sm font-bold text-slate-600">選擇帳號</label>
+                 <button type="button" onClick={() => setIsManualLogin(!isManualLogin)} className="text-xs text-indigo-500 hover:underline font-bold">
+                   {isManualLogin ? '切換為下拉選單' : '手動輸入帳號'}
+                 </button>
+              </div>
+              
+              {isManualLogin ? (
+                <input type="text" value={loginForm.account} onChange={e => setLoginForm({ ...loginForm, account: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#9aa486]" required placeholder="輸入帳號 ID (如: admin)" />
+              ) : (
+                <select value={loginForm.account} onChange={e => setLoginForm({ ...loginForm, account: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none font-bold">
+                  {displayTeam.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              )}
+              
               <input type="password" value={loginForm.password} onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none" required placeholder="輸入密碼" />
               <button type="submit" className="w-full bg-[#192039] text-[#e3b5a1] font-bold py-3.5 rounded-xl shadow-md mt-4">登入系統</button>
             </form>
@@ -1311,7 +1353,12 @@ const renderCalendarCell = (slot, date, advId) => {
 
             {adminTab === 'team' && currentUser?.role === 'admin' && (
               <div className="space-y-6 animate-in fade-in p-6">
-                <div className="flex justify-between items-center border-b pb-4"><h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><UserPlus className="text-[#9aa486]" /> 顧問與團隊管理</h3></div>
+              <div className="flex justify-between items-center border-b pb-4">
+                <h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><UserPlus className="text-[#9aa486]" /> 顧問與團隊管理</h3>
+                <button onClick={handleToggleAdminVisibility} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border border-slate-300 shadow-sm">
+                 {isAdminHidden ? '👁️ 顯示 admin 帳號' : '🛡️ 隱藏 admin 帳號'}
+                 </button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="bg-white p-6 rounded-2xl shadow-sm border md:col-span-1 h-fit">
                     <h4 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><PlusCircle size={18} /> 新增團隊成員</h4>
@@ -1333,7 +1380,7 @@ const renderCalendarCell = (slot, date, advId) => {
                       <table className="w-full text-left text-sm">
                         <thead><tr className="border-b text-slate-500"><th className="pb-3 font-bold pl-2">顯示名稱</th><th className="pb-3 font-bold">帳號</th><th className="pb-3 font-bold">密碼 (點擊修改)</th><th className="pb-3 font-bold">角色</th><th className="pb-3 font-bold text-right pr-2">操作</th></tr></thead>
                         <tbody>
-                          {teamMembers.map(m => (
+                          {displayTeam.map(m => (
                             <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                               <td className="py-3 font-bold text-slate-700 pl-2">{m.name}</td><td className="py-3 text-slate-600">{m.id}</td>
                               <td className="py-3 text-slate-600 font-mono text-xs">
