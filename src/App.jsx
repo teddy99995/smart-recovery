@@ -51,6 +51,34 @@ const BrandFooter = () => (
   </footer>
 );
 
+// 免責聲明與預約須知組件 (長輩友善大字體)
+const BookingDisclaimer = () => (
+  <div className="bg-[#f4faec] border border-[#9aa486] rounded-2xl p-5 sm:p-6 mb-8 shadow-sm text-slate-700">
+    <h3 className="text-xl font-bold text-[#192039] mb-4 flex items-center gap-2">
+      🌿 智理 Smart Recovery 專屬預約小叮嚀
+    </h3>
+    <p className="font-bold mb-4 text-base sm:text-lg">【歡迎來到 ✨智理運動恢復 Smart Recovery✨ 】</p>
+    <p className="text-base sm:text-lg leading-relaxed mb-6">
+      為了給您最完整、專屬的陪伴與動作優化體驗，我們採全預約制。以下為您準備了預約小叮嚀，希望能保障您的最高服務品質：
+    </p>
+    <div className="space-y-5 text-base sm:text-lg leading-relaxed">
+      <div className="bg-white/60 p-4 rounded-xl">
+        <h4 className="font-bold text-[#192039] mb-1">1. 關於時間與遲到（把最棒的狀態留給自己）</h4>
+        <p>您的專屬時段是我們為您精心預留的。如果您不小心遲到了，為了不壓縮到下一位朋友的權益，我們的服務還是會在原定時間結束喔（費用將維持原預約時段計算）。建議您提早 5-10 分鐘抵達，先喝口水、喘口氣，讓身體在最放鬆的狀態下開始！</p>
+      </div>
+      <div className="bg-white/60 p-4 rounded-xl">
+        <h4 className="font-bold text-[#192039] mb-1">2. 關於行程變更（謝謝您的體諒）</h4>
+        <p>我們完全理解生活中總有突發狀況！若您的行程有異動，麻煩您最晚於預約時間的 <span className="text-rose-600 font-bold">24 小時前</span> 透過系統或官方 LINE 告訴我們，讓我們能把這個時段安排給其他同樣需要幫助的朋友。</p>
+        <p className="mt-2 text-sm sm:text-base text-slate-500 font-bold">⚠️ 提醒您，若有「無故未到」或「24 小時內臨時取消」累計達 2 次的狀況，未來可能就只能麻煩您當天碰碰運氣、預約當日的空檔了，非常感謝您的體諒與配合！</p>
+      </div>
+      <div className="bg-white/60 p-4 rounded-xl">
+        <h4 className="font-bold text-[#192039] mb-1">3. 我們的專業承諾</h4>
+        <p>智理專注於「動作評估、健康促進與高階運動恢復」，非屬傳統醫療診斷與治療行為。若在評估過程中，發現您的身體需要進一步的醫療協助，我們也會為您提供最專業的轉介建議，陪您一起找到最適合的健康方案。</p>
+      </div>
+    </div>
+  </div>
+);
+
 // 老闆營收分析組件
 export const getBossAnalytics = (records) => {
   if (!records || !Array.isArray(records)) return {};
@@ -118,15 +146,10 @@ async function callGeminiAPI(prompt, retries = 3, delay = 1000) {
 
 const generateAllSlots = () => {
   const slots = [];
-  // 改從 9 開始，到 22 結束
   for (let h = 9; h <= 22; h++) {
     const startH = String(h).padStart(2, '0');
     const nextH = String(h + 1).padStart(2, '0');
-    
-    // 每個小時的 00-30 分
     slots.push(`${startH}:00-${startH}:30`);
-    
-    // 加上判斷：如果是 22 點，就不產生 22:30-23:00 的時段
     if (h !== 22) {
       slots.push(`${startH}:30-${nextH}:00`);
     }
@@ -171,49 +194,41 @@ export default function App() {
   const [schedules, setSchedules] = useState([]);
   const [customerMemos, setCustomerMemos] = useState({});
 
-  // === 安全模式與登入狀態 (移到這裡！) ===
   const [isAdminHidden, setIsAdminHidden] = useState(false);
   const [isManualLogin, setIsManualLogin] = useState(false);
   
-  // 團隊管理與身分驗證
   const [teamMembers, setTeamMembers] = useState(DEFAULT_TEAM);
   const [activeAdvisors, setActiveAdvisors] = useState(DEFAULT_TEAM.map(m => m.id));
   const [currentUser, setCurrentUser] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginForm, setLoginForm] = useState({ account: 'ted', password: '' });
   
-  // 修正：忘記密碼功能狀態移入元件內
   const [showResetPwdModal, setShowResetPwdModal] = useState(false);
   const [resetForm, setResetForm] = useState({ account: 'jerry', authCode: '', newPwd: '' });
   
   const [showPwdModal, setShowPwdModal] = useState(false);
   const [userNewPwd, setUserNewPwd] = useState('');
-  const [appMode, setAppMode] = useState('booking'); // 'booking', 'tracking', 'admin'
-  // === 全新 Google 日曆模式狀態 ===
-  const [calViewMode, setCalViewMode] = useState('week'); // 'week' 或 'day'
+  const [appMode, setAppMode] = useState('booking');
+  const [calViewMode, setCalViewMode] = useState('week');
   const [calBaseDate, setCalBaseDate] = useState(new Date());
-  // 員工預設看自己，老闆(admin)預設看所有人
   const [calTargetAdvisor, setCalTargetAdvisor] = useState(currentUser?.role === 'admin' ? 'all' : currentUser?.id);
   const [currentTimeLine, setCurrentTimeLine] = useState(new Date());
 
-  // 每一格 30 分鐘的高度 (px)
   const SLOT_HEIGHT = 48; 
-  const START_HOUR = 9; // 從早上 9 點開始繪製
+  const START_HOUR = 9;
 
-  // 讓系統每分鐘更新一次當前時間（控制紅線移動）
   useEffect(() => {
     const timer = setInterval(() => setCurrentTimeLine(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  // 取得畫面上要顯示的日期陣列
   const getCalendarDays = () => {
     const dates = [];
     const base = new Date(calBaseDate);
     if (calViewMode === 'day') {
       dates.push(base);
     } else {
-      const day = base.getDay(); // 0 是週日
+      const day = base.getDay();
       for (let i = 0; i < 7; i++) {
         const d = new Date(base);
         d.setDate(base.getDate() - day + i);
@@ -224,13 +239,9 @@ export default function App() {
   };
   const calendarDays = getCalendarDays();
 
-
-  // === 日曆視圖狀態 ===
   const [calendarDate, setCalendarDate] = useState(new Date());
-  // 新增這行：戰情室當前選擇的日期（預設為今天）
   const [warRoomDate, setWarRoomDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // Modal 彈出視窗與表單管理
   const [showRebookModal, setShowRebookModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(null);
   const [memoInput, setMemoInput] = useState('');
@@ -254,12 +265,10 @@ export default function App() {
   const [adminTab, setAdminTab] = useState('appointments');
   const [newAdvisor, setNewAdvisor] = useState({ id: '', name: '', pwd: '', role: 'advisor' });
 
-  // 查詢功能
   const [clientSearchPhone, setClientSearchPhone] = useState('');
   const [clientAppts, setClientAppts] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // 排班管理
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleAdvisorId, setScheduleAdvisorId] = useState('');
   const [selectedSlots, setSelectedSlots] = useState([]);
@@ -268,14 +277,12 @@ export default function App() {
   const [rangeEndDate, setRangeEndDate] = useState('');
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
-  // 數據與後台視角
   const [apptFilter, setApptFilter] = useState('today');
   const [adminViewAdvisor, setAdminViewAdvisor] = useState('all');
   const [copiedPhoneId, setCopiedPhoneId] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
   const [selectedAnalyticsAdvisors, setSelectedAnalyticsAdvisors] = useState(DEFAULT_TEAM.map(m => m.id));
 
-  // === 結帳機 (POS) 與 商品價目狀態 ===
   const [showPOS, setShowPOS] = useState(false);
   const [cart, setCart] = useState([]);
   const [customItem, setCustomItem] = useState({ name: '', price: '', qty: 1 });
@@ -284,21 +291,17 @@ export default function App() {
   const [revenueRecords, setRevenueRecords] = useState([]);
   const [posSelectedMonth, setPosSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
 
-  // 價目表設定狀態
   const [priceList, setPriceList] = useState({ services: [], addons: [] });
   const [newProduct, setNewProduct] = useState({ type: 'services', name: '', price: '' });
 
-  // 衍生的購物車總計計算
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
   const calcFinalAmount = Math.round(cartTotal * (Number(calcDiscount) || 10) / 10);
 
-  // AI 顧問
   const [aiInput, setAiInput] = useState('');
   const [aiRec, setAiRec] = useState('');
   const [loadingAi, setLoadingAi] = useState(false);
   const [adviceMap, setAdviceMap] = useState({});
 
-  // Memo 計算與資料派生
   const next28Days = useMemo(() => {
     const days = []; const today = new Date();
     for (let i = 1; i <= 28; i++) {
@@ -327,29 +330,27 @@ export default function App() {
     return revenueRecords.filter(record => record.date && record.date.startsWith(posSelectedMonth)).reduce((sum, record) => sum + record.finalAmount, 0);
   }, [revenueRecords, posSelectedMonth]);
 
-  // 新增：日曆視圖單元格渲染函數
-const renderCalendarCell = (slot, date, advId) => {
-  const isBooked = appointments.find(a => a.advisorId === advId && a.date === date && a.status !== '已取消' && a.timeSlots?.includes(slot));
-  const isScheduled = schedules.find(s => s.advisorId === advId && s.date === date)?.slots?.includes(slot);
-  
-  if (isBooked) return (
-    <div key={`${advId}-${slot}`} onClick={() => handleQuickCheckout(isBooked)} className="h-10 text-[10px] bg-rose-100 border border-rose-200 text-rose-800 font-bold p-1 rounded-md overflow-hidden cursor-pointer hover:bg-rose-200" title={isBooked.name}>
-      {isBooked.name}
-    </div>
-  );
-  if (isScheduled) return (
-    <div key={`${advId}-${slot}`} onClick={() => { 
-      setRebookCustomer({name: "現場預約", phone: ""}); 
-      setRebookFormData({ date, time: slot, service: serviceTypes[0], consultant: advId, isBackend: true }); 
-      setShowRebookModal(true); 
-    }} className="h-10 text-[10px] bg-[#f4faec] border border-[#9aa486] text-[#9aa486] font-bold flex items-center justify-center rounded-md cursor-pointer hover:bg-[#e3b5a1] hover:text-white transition-colors">
-      空檔
-    </div>
-  );
-  return <div key={`${advId}-${slot}`} className="h-10 text-[10px] bg-slate-50 border border-slate-100 flex items-center justify-center rounded-md text-slate-300">無班</div>;
-};
+  const renderCalendarCell = (slot, date, advId) => {
+    const isBooked = appointments.find(a => a.advisorId === advId && a.date === date && a.status !== '已取消' && a.timeSlots?.includes(slot));
+    const isScheduled = schedules.find(s => s.advisorId === advId && s.date === date)?.slots?.includes(slot);
+    
+    if (isBooked) return (
+      <div key={`${advId}-${slot}`} onClick={() => handleQuickCheckout(isBooked)} className="h-10 text-[10px] bg-rose-100 border border-rose-200 text-rose-800 font-bold p-1 rounded-md overflow-hidden cursor-pointer hover:bg-rose-200" title={isBooked.name}>
+        {isBooked.name}
+      </div>
+    );
+    if (isScheduled) return (
+      <div key={`${advId}-${slot}`} onClick={() => { 
+        setRebookCustomer({name: "現場預約", phone: ""}); 
+        setRebookFormData({ date, time: slot, service: serviceTypes[0], consultant: advId, isBackend: true }); 
+        setShowRebookModal(true); 
+      }} className="h-10 text-[10px] bg-[#f4faec] border border-[#9aa486] text-[#9aa486] font-bold flex items-center justify-center rounded-md cursor-pointer hover:bg-[#e3b5a1] hover:text-white transition-colors">
+        空檔
+      </div>
+    );
+    return <div key={`${advId}-${slot}`} className="h-10 text-[10px] bg-slate-50 border border-slate-100 flex items-center justify-center rounded-md text-slate-300">無班</div>;
+  };
 
-  // Firebase 監聽器
   useEffect(() => {
     const isLineApp = navigator.userAgent.includes('Line');
     const hasExternalParam = window.location.search.includes('openExternalBrowser=1');
@@ -358,8 +359,9 @@ const renderCalendarCell = (slot, date, advId) => {
       newUrl.searchParams.set('openExternalBrowser', '1');
       window.location.href = newUrl.toString();
     }
-    }, []);
+  }, []);
 
+  useEffect(() => {
     const unsubAppt = onSnapshot(query(collection(db, "appointments")), (snapshot) => {
       const appts = [];
       snapshot.forEach(doc => {
@@ -385,44 +387,36 @@ const renderCalendarCell = (slot, date, advId) => {
     const unsubSettings = onSnapshot(doc(db, "settings", "teamConfig"), (docSnap) => {
       if (docSnap.exists()) {
         setActiveAdvisors(docSnap.data().activeIds || []);
-        // 新增：從資料庫即時讀取 admin 帳號目前是隱藏還是顯示
         setIsAdminHidden(docSnap.data().isAdminHidden || false);
       }
     });
 
     const unsubMemos = onSnapshot(query(collection(db, "customerMemos")), (snapshot) => {
       const memos = {};
-      
-const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
-      // 1. 如果資料庫還沒有建立名單，先初始化寫入預設值
+      snapshot.forEach(doc => { memos[doc.id] = doc.data().text; });
+      setCustomerMemos(memos);
+    });
+
+    const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
       if (!docSnap.exists() || !docSnap.data().members) {
         setDoc(doc(db, "settings", "teamList"), { members: DEFAULT_TEAM });
       }
-      
-      // 2. 取得成員資料 (如果剛好沒有就先用預設值墊檔)
       let members = docSnap.exists() && docSnap.data().members ? docSnap.data().members : DEFAULT_TEAM;
-      
-      // 3. 🛡️ 安全模式後門：強行注入或保護 admin 權限
       if (!members.find(m => m.id === 'admin')) {
         members.push({ id: 'admin', name: '最高管理員 (安全模式)', pwd: 'admin', role: 'admin' });
       } else {
-        // 強制在代碼層級鎖死 admin 的權限為最高管理員(admin)，防止被同行降級
         const adminIdx = members.findIndex(m => m.id === 'admin');
         members[adminIdx].role = 'admin'; 
       }
-      
-      // 4. 更新至 React 狀態中
       setTeamMembers(members);
     });
 
-    // 新增：監聽營收紀錄 (Firebase 同步)
     const unsubRevenue = onSnapshot(query(collection(db, "revenueRecords")), (snapshot) => {
       const records = [];
       snapshot.forEach(doc => records.push({ id: doc.id, ...doc.data() }));
       setRevenueRecords(records);
     });
 
-    // 新增：監聽動態價目表
     const unsubPriceList = onSnapshot(doc(db, "settings", "priceList"), (docSnap) => {
       if (docSnap.exists()) {
         setPriceList(docSnap.data());
@@ -459,7 +453,6 @@ const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
 
   const handleLogout = () => { setCurrentUser(null); setAdminTab('appointments'); setAdditionalDates([]); setRangeStartDate(''); setRangeEndDate(''); };
 
-  // 移入並修正：重設密碼函式
   const handleResetPassword = async (e) => {
     e.preventDefault();
     if (resetForm.authCode !== '950901') { 
@@ -500,7 +493,6 @@ const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
     } catch (e) { alert('匯出失敗，請檢查網路連線。'); }
   };
 
-  // === 新增：商品管理相關操作 ===
   const handleAddProduct = async (e) => {
     e.preventDefault();
     if (!newProduct.name || !newProduct.price) return;
@@ -522,11 +514,10 @@ const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
     } catch (err) { alert('刪除失敗'); }
   };
 
-  // === 購物車與明細操作邏輯 ===
   const handleAddCartItem = (name, price, qty, isBase = false) => {
     setCart(prev => {
       let newCart = [...prev];
-      if (isBase) newCart = newCart.filter(item => !item.isBase); // 清除舊的基礎服務
+      if (isBase) newCart = newCart.filter(item => !item.isBase);
       const existingIdx = newCart.findIndex(item => item.name === name && item.price === Number(price));
       if (existingIdx >= 0 && !isBase) {
         newCart[existingIdx].qty += Number(qty);
@@ -545,7 +536,6 @@ const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
     setCustomItem({ name: '', price: '', qty: 1 });
   };
 
-  // === 更新：將結帳明細存入 Firebase ===
   const handleConfirmPayment = async () => {
     if (cart.length === 0 || cartTotal <= 0) return alert('請先加入商品或服務項目！');
     if (!calcAdvisor) return alert('⚠️ 請先選擇「本次收款人」是誰，才能結帳喔！');
@@ -553,7 +543,7 @@ const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
       date: new Date().toISOString(),
       originalPrice: cartTotal, discount: Number(calcDiscount),
       finalAmount: calcFinalAmount, advisorId: calcAdvisor,
-      items: cart // 將明細存入資料庫
+      items: cart
     };
     try {
       await addDoc(collection(db, "revenueRecords"), newRecord);
@@ -567,7 +557,6 @@ const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
   };
 
   const handleQuickCheckout = (appt) => {
-    // 確保有抓到對應的顧問 ID，如果沒抓到先留白
     const validAdvisor = teamMembers.find(m => m.id === appt.advisorId);
     setCalcAdvisor(validAdvisor ? validAdvisor.id : '');
     
@@ -575,7 +564,6 @@ const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
     if (appt.customerType === '初次預約') basePrice = 2000;
     if (appt.timeSlots && appt.timeSlots.length > 2) basePrice += 800 * (appt.timeSlots.length - 2);
 
-    // 明確帶入服務項目與客戶名稱
     setCart([{ 
       id: 'base', 
       name: `${appt.serviceType || '基礎服務'} (${appt.name})`, 
@@ -616,21 +604,14 @@ const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
     });
   };
   const displayAppointments = getFilteredAppointments();
+
   const handleEmptySlotClick = (dateStr, timeSlot) => {
     setRebookCustomer({ name: "現場客", phone: "" });
-    
-    // 如果老闆選擇了查看所有人，點擊空白處預設帶入團隊第一人，老闆可以在視窗內改
     let targetAdv = calTargetAdvisor;
     if (targetAdv === 'all') {
       targetAdv = teamMembers.filter(m => activeAdvisors.includes(m.id))[0]?.id || '';
     }
-
-    setRebookFormData({ 
-      date: dateStr, 
-      time: timeSlot, 
-      service: serviceTypes[0], 
-      consultant: targetAdv || "" 
-    });
+    setRebookFormData({ date: dateStr, time: timeSlot, service: serviceTypes[0], consultant: targetAdv || "" });
     setShowRebookModal(true);
   };
 
@@ -680,6 +661,19 @@ const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
     if (!formData.name || !formData.phone || formData.timeSlots.length === 0 || !formData.serviceType || !formData.advisorId || !formData.isFirstTime || !formData.date) {
       setConflictError('請完整填寫所有必填欄位，並選擇至少一個時段'); return;
     }
+
+    // 聯絡方式：台灣手機或 Line ID 驗證
+    const contactValue = formData.phone.trim();
+    const phoneRegex = /^09\d{8}$/;
+    const lineIdRegex = /^[a-zA-Z0-9.\-_]{4,20}$/; 
+    const isPhone = phoneRegex.test(contactValue);
+    const isLineId = lineIdRegex.test(contactValue);
+
+    if (!isPhone && !isLineId) {
+      setConflictError('⚠️ 聯絡資訊格式錯誤：請輸入 10 碼台灣手機號碼 (09開頭) 或有效的 LINE ID！'); 
+      return;
+    }
+
     if (formData.isFirstTime === 'yes') {
       if (formData.timeSlots.length < 2) { setConflictError('初次來店需進行詳細的身體評估，請至少選擇 2 個時段 (共 1 小時) 喔！'); return; }
       const sortedSlots = [...formData.timeSlots].sort();
@@ -763,14 +757,13 @@ const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
     } catch (err) { alert('新增失敗：' + err.message); }
   };
 
-const handleDeleteAdvisor = async (id, name) => {
+  const handleDeleteAdvisor = async (id, name) => {
     if (id === 'ted' || id === 'admin') return alert('⚠️ 無法刪除最高管理員！');
     if (!window.confirm(`確定要徹底刪除團隊成員「${name}」嗎？\n(過去由他服務的訂單依然會保留姓名，不會影響營收數據)`)) return;
     const updatedTeam = teamMembers.filter(m => m.id !== id);
     try { await setDoc(doc(db, "settings", "teamList"), { members: updatedTeam }, { merge: true }); alert('🗑️ 團隊成員已刪除！'); } catch (err) { alert('刪除失敗：' + err.message); }
   };
     
-    // 切換隱藏/顯示超級管理員
   const handleToggleAdminVisibility = async () => {
     try {
       await setDoc(doc(db, "settings", "teamConfig"), { isAdminHidden: !isAdminHidden }, { merge: true });
@@ -778,7 +771,6 @@ const handleDeleteAdvisor = async (id, name) => {
     } catch (err) { alert('設定失敗：' + err.message); }
   };
 
-  // 派生出「介面上可見」的團隊名單（過濾掉被隱藏的 admin）
   const displayTeam = teamMembers.filter(m => !(m.id === 'admin' && isAdminHidden));
 
   const handleAIGetRecommendation = async () => {
@@ -791,7 +783,7 @@ const handleDeleteAdvisor = async (id, name) => {
   const applyAiService = () => {
     const matchedService = serviceTypes.find(s => aiRec && aiRec.includes(s));
     if (matchedService) { setFormData(prev => ({ ...prev, serviceType: matchedService })); alert(`✅ 已為您自動套用服務：${matchedService}`); }
-    else { alert("請手動在下方表單選擇對應的服務喔！"); }
+    else { alert("請手手動在下方表單選擇對應的服務喔！"); }
   };
 
   const generatePostSessionAdvice = async (apptId, customerName, service, note) => {
@@ -1070,44 +1062,47 @@ const handleDeleteAdvisor = async (id, name) => {
               <button onClick={() => setAppMode('tracking')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${appMode === 'tracking' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-white/50 hover:text-white/80'}`}>我的預約查詢</button>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            {/* 新增的大字體免責聲明組件，放在表單填寫區最上方 */}
+            {appMode === 'booking' && <BookingDisclaimer />}
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5">
               <div>
-                <label className="block text-[13px] font-bold text-slate-700 mb-2 flex items-center gap-2">
+                <label className="block text-base font-bold text-slate-700 mb-2 flex items-center gap-2">
                   <span>目前的疼痛/緊繃程度 (1-10分) :</span><span className="text-[#9aa486] font-extrabold text-lg">{formData.painLevel} 分</span>
                 </label>
                 <input type="range" min="1" max="10" value={formData.painLevel} onChange={(e) => setFormData({ ...formData, painLevel: parseInt(e.target.value) })} className="w-full accent-[#9aa486]" />
-                <div className="flex justify-between text-[11px] text-slate-400 font-bold px-1 mt-1"><span>1 (輕微)</span><span>10 (極度不適)</span></div>
+                <div className="flex justify-between text-sm text-slate-400 font-bold px-1 mt-1"><span>1 (輕微)</span><span>10 (極度不適)</span></div>
               </div>
               <div>
-                <label className="block text-[13px] font-bold text-slate-700 mb-2">主要不適部位 (可複選)</label>
+                <label className="block text-base font-bold text-slate-700 mb-2">主要不適部位 (可複選)</label>
                 <div className="flex flex-wrap gap-2">
                   {BODY_PARTS.map(part => (
-                    <button key={part} type="button" onClick={() => toggleBodyPart(part)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${formData.bodyParts.includes(part) ? 'bg-[#192039] text-[#e3b5a1] border-[#192039]' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                    <button key={part} type="button" onClick={() => toggleBodyPart(part)} className={`px-4 py-2 rounded-lg text-base font-bold border transition-colors ${formData.bodyParts.includes(part) ? 'bg-[#192039] text-[#e3b5a1] border-[#192039]' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                       {part}
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="block text-[13px] font-bold text-slate-700 mb-1.5">其他文字備註</label>
-                <textarea name="needs" value={formData.needs} onChange={handleInputChange} rows="2" placeholder="例如：右膝蓋之前有開過刀..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#e3b5a1]" />
+                <label className="block text-base font-bold text-slate-700 mb-1.5">其他文字備註</label>
+                <textarea name="needs" value={formData.needs} onChange={handleInputChange} rows="2" placeholder="例如：右膝蓋之前有開過刀..." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" />
               </div>
             </div>
 
             {appMode === 'booking' && (
               <>
                 <div className="bg-gradient-to-br from-indigo-50 to-white rounded-3xl shadow-xl p-6 sm:p-8 border border-indigo-100">
-                  <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-indigo-900"><MessageSquare className="text-indigo-600" /> AI 智慧恢復顧問</h2>
-                  <p className="text-[13px] text-slate-500 mb-4">不知道該預約什麼項目嗎？告訴我們您哪裡不舒服吧！</p>
-                  <textarea value={aiInput} onChange={e => setAiInput(e.target.value)} rows="2" className="w-full p-3 bg-white border border-indigo-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-400 text-sm resize-none" placeholder="例如：最近跑步完膝蓋外側緊緊的，或是肩膀一直很僵硬..." />
-                  <button onClick={handleAIGetRecommendation} disabled={loadingAi || !aiInput.trim()} className="mt-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl text-[13px] transition-all flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 shadow-sm">
-                    {loadingAi ? <RefreshCw className="animate-spin" size={16} /> : <Sparkles size={16} />} 請 AI 給予專業建議
+                  <h2 className="text-lg md:text-xl font-bold mb-3 flex items-center gap-2 text-indigo-900"><MessageSquare className="text-indigo-600" /> AI 智慧恢復顧問</h2>
+                  <p className="text-base text-slate-500 mb-4">不知道該預約什麼項目嗎？告訴我們您哪裡不舒服吧！</p>
+                  <textarea value={aiInput} onChange={e => setAiInput(e.target.value)} rows="2" className="w-full p-4 bg-white border border-indigo-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-400 text-base resize-none" placeholder="例如：最近跑步完膝蓋外側緊緊的，或是肩膀一直很僵硬..." />
+                  <button onClick={handleAIGetRecommendation} disabled={loadingAi || !aiInput.trim()} className="mt-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl text-base transition-all flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 shadow-sm">
+                    {loadingAi ? <RefreshCw className="animate-spin" size={18} /> : <Sparkles size={18} />} 請 AI 給予專業建議
                   </button>
                   {aiRec && (
                     <div className="mt-5 p-4 bg-indigo-100/50 border border-indigo-200 rounded-xl animate-in fade-in">
-                      <p className="text-[13px] text-indigo-900 leading-relaxed font-medium whitespace-pre-line">{aiRec}</p>
-                      <button type="button" onClick={applyAiService} className="mt-4 w-full sm:w-auto text-[13px] bg-white border border-indigo-300 text-indigo-700 font-bold px-4 py-2 rounded-lg hover:bg-indigo-50 transition-all flex items-center justify-center gap-1.5 shadow-sm">
-                        <CheckCircle size={14} /> 👉 聽從建議，自動套用此服務
+                      <p className="text-base text-indigo-900 leading-relaxed font-medium whitespace-pre-line">{aiRec}</p>
+                      <button type="button" onClick={applyAiService} className="mt-4 w-full sm:w-auto text-base bg-white border border-indigo-300 text-indigo-700 font-bold px-4 py-2 rounded-lg hover:bg-indigo-50 transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                        <CheckCircle size={16} /> 👉 聽從建議，自動套用此服務
                       </button>
                     </div>
                   )}
@@ -1115,69 +1110,81 @@ const handleDeleteAdvisor = async (id, name) => {
 
                 {successData ? (
                   <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 text-center">
-                    <CheckCircle size={48} className="text-[#9aa486] mx-auto mb-4" />
+                    <CheckCircle size={56} className="text-[#9aa486] mx-auto mb-4" />
                     <h2 className="text-2xl font-bold text-[#192039] mb-4">預約申請已送出！</h2>
-                    <p className="text-slate-500 text-[14px] mb-6">請透過下方按鈕加入官方 LINE，我們將由專人為您確認保留。</p>
-                    <a href={generateGoogleCalendarLink(successData?.date, successData?.time, successData?.service, successData?.advisor)} target="_blank" rel="noopener noreferrer" className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 py-3 rounded-xl font-bold flex items-center justify-center gap-2 mb-3 transition-colors">
-                      <Calendar size={18} /> 將行程加入 Google 行事曆
+                    <p className="text-slate-500 text-base mb-6">請透過下方按鈕加入官方 LINE，我們將由專人為您確認保留。</p>
+                    <a href={generateGoogleCalendarLink(successData?.date, successData?.time, successData?.service, successData?.advisor)} target="_blank" rel="noopener noreferrer" className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 mb-3 transition-colors">
+                      <Calendar size={20} /> 將行程加入 Google 行事曆
                     </a>
                     <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 mb-6 text-left">
-                      <h3 className="text-[12px] font-bold text-slate-400 tracking-widest mb-4 border-b border-slate-200 pb-3">BOOKING DETAILS</h3>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-[15px]">預約姓名</span><span className="text-slate-800 font-bold text-[15px]">{successData?.name || '無'}</span></div>
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-[15px]">客戶屬性</span><span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-[15px] font-bold">{successData?.customerType || '無'}</span></div>
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-[15px]">預約項目</span><span className="text-slate-800 font-bold text-[15px] text-right max-w-[160px] truncate">{successData?.service || '無'}</span></div>
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-[15px]">指定顧問</span><span className="text-slate-800 font-bold text-[15px]">{successData?.advisor || '無'}</span></div>
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-[15px]">預約日期</span><span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md text-[15px] font-bold">{successData?.date || '無'}</span></div>
-                        <div className="flex justify-between items-center pb-1"><span className="text-slate-500 text-[15px]">預約時間</span><span className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md text-[15px] font-bold">{successData?.time || '無'}</span></div>
+                      <h3 className="text-sm font-bold text-slate-400 tracking-widest mb-4 border-b border-slate-200 pb-3">BOOKING DETAILS</h3>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">預約姓名</span><span className="text-slate-800 font-bold text-base">{successData?.name || '無'}</span></div>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">客戶屬性</span><span className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md text-base font-bold">{successData?.customerType || '無'}</span></div>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">預約項目</span><span className="text-slate-800 font-bold text-base text-right max-w-[160px] truncate">{successData?.service || '無'}</span></div>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">指定顧問</span><span className="text-slate-800 font-bold text-base">{successData?.advisor || '無'}</span></div>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">預約日期</span><span className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-md text-base font-bold">{successData?.date || '無'}</span></div>
+                        <div className="flex justify-between items-center pb-1"><span className="text-slate-500 text-base">預約時間</span><span className="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-md text-base font-bold">{successData?.time || '無'}</span></div>
                       </div>
                     </div>
-                    <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="w-full bg-[#06C755] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 mb-4"><MessageCircle size={20} /> 加入 LINE 官方帳號</a>
-                    <button onClick={() => setSuccessData(null)} className="text-[13px] text-slate-400 underline">返回首頁</button>
+                    <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="w-full bg-[#06C755] text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 mb-4"><MessageCircle size={24} /> 加入 LINE 官方帳號</a>
+                    <button onClick={() => setSuccessData(null)} className="text-base text-slate-400 underline mt-2">返回首頁</button>
                   </div>
                 ) : (
                   <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 relative">
                     <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#9aa486] to-[#e3b5a1]"></div>
-                    <h2 className="text-lg font-bold mb-6 flex items-center gap-2 text-[#192039] border-b pb-4"><PlusCircle size={20} className="text-[#9aa486]" />線上預約專屬時段</h2>
-                    <form onSubmit={handleSubmit} className="space-y-5">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-[13px] font-bold text-slate-600 mb-1.5">姓名 *</label><input type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full p-3 bg-slate-50 border rounded-2xl text-sm outline-none focus:ring-2 focus:ring-[#e3b5a1]" required /></div>
-                        <div><label className="block text-[13px] font-bold text-slate-600 mb-1.5">電話 *</label><input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} className="w-full p-3 bg-slate-50 border rounded-2xl text-sm outline-none focus:ring-2 focus:ring-[#e3b5a1]" required /></div>
-                      </div>
-                      <div className="bg-slate-50 p-4 rounded-2xl border">
-                        <label className="block text-[13px] font-bold text-slate-700 mb-2">初次來店？ *</label>
-                        <div className="flex gap-3">
-                          <button type="button" onClick={() => setFormData({ ...formData, isFirstTime: 'yes' })} className={`flex-1 py-3 rounded-xl border-2 font-bold text-[13px] ${formData.isFirstTime === 'yes' ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white'}`}>是，初次預約</button>
-                          <button type="button" onClick={() => setFormData({ ...formData, isFirstTime: 'no' })} className={`flex-1 py-3 rounded-xl border-2 font-bold text-[13px] ${formData.isFirstTime === 'no' ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white'}`}>否，我來過</button>
+                    <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-[#192039] border-b pb-4"><PlusCircle size={24} className="text-[#9aa486]" /> 線上預約專屬時段</h2>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div>
+                          <label className="block text-base font-bold text-slate-600 mb-2">姓名 *</label>
+                          <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required />
+                        </div>
+                        <div>
+                          <label className="block text-base font-bold text-slate-600 mb-2">聯絡電話 / LINE ID *</label>
+                          {/* 為了支援 Line ID 的英文輸入，改為 text 而非 tel */}
+                          <input type="text" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="09XX... 或 LINE ID" className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required />
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div><label className="block text-[13px] font-bold text-slate-600 mb-1.5">預約項目 *</label>
-                          <select name="serviceType" value={formData.serviceType} onChange={handleInputChange} className="w-full p-3 bg-slate-50 border rounded-2xl text-sm outline-none focus:ring-2 focus:ring-[#e3b5a1]" required>
+                      <div className="bg-slate-50 p-5 rounded-2xl border">
+                        <label className="block text-base font-bold text-slate-700 mb-3">初次來店？ *</label>
+                        <div className="flex gap-3">
+                          <button type="button" onClick={() => setFormData({ ...formData, isFirstTime: 'yes' })} className={`flex-1 py-4 rounded-xl border-2 font-bold text-base ${formData.isFirstTime === 'yes' ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white'}`}>是，初次預約</button>
+                          <button type="button" onClick={() => setFormData({ ...formData, isFirstTime: 'no' })} className={`flex-1 py-4 rounded-xl border-2 font-bold text-base ${formData.isFirstTime === 'no' ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white'}`}>否，我來過</button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div>
+                          <label className="block text-base font-bold text-slate-600 mb-2">預約項目 *</label>
+                          <select name="serviceType" value={formData.serviceType} onChange={handleInputChange} className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required>
                             <option value="" disabled>請選擇服務</option>{serviceTypes.map(type => <option key={type} value={type}>{type}</option>)}
                           </select>
                         </div>
-                        <div><label className="block text-[13px] font-bold text-slate-600 mb-1.5">指定顧問 *</label>
-                          <select name="advisorId" value={formData.advisorId} onChange={handleInputChange} className="w-full p-3 bg-slate-50 border rounded-2xl text-sm outline-none focus:ring-2 focus:ring-[#e3b5a1]" required>
+                        <div>
+                          <label className="block text-base font-bold text-slate-600 mb-2">指定顧問 *</label>
+                          <select name="advisorId" value={formData.advisorId} onChange={handleInputChange} className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required>
                             <option value="" disabled>請選擇顧問</option>
                             <option value="any" className="font-bold text-[#9aa486]">✨ 不指定顧問 (安排最快時段)</option>
                             {teamMembers.filter(m => activeAdvisors.includes(m.id)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                           </select>
                         </div>
                       </div>
-                      <div><label className="block text-[13px] font-bold text-slate-600 mb-1.5">選擇日期 *</label><input type="date" name="date" value={formData.date} onChange={handleInputChange} min={new Date().toISOString().split('T')[0]} className="w-full p-3 bg-slate-50 border rounded-2xl text-sm outline-none focus:ring-2 focus:ring-[#e3b5a1]" required /></div>
                       <div>
-                        <label className="block text-[13px] font-bold text-slate-600 mb-2">選擇時段 (可複選) *</label>
-                        {!formData.date || !formData.advisorId ? <div className="text-[13px] text-slate-400 bg-slate-50 p-4 rounded-2xl text-center border-dashed border">請先選擇上方「指定顧問」與「日期」</div> : clientAvailableSlots.length === 0 ? <div className="text-[13px] text-rose-400 bg-rose-50 p-4 rounded-2xl text-center">該日無可預約時段</div> : (
-                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                        <label className="block text-base font-bold text-slate-600 mb-2">選擇日期 *</label>
+                        <input type="date" name="date" value={formData.date} onChange={handleInputChange} min={new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required />
+                      </div>
+                      <div>
+                        <label className="block text-base font-bold text-slate-600 mb-3">選擇時段 (可複選) *</label>
+                        {!formData.date || !formData.advisorId ? <div className="text-base text-slate-400 bg-slate-50 p-6 rounded-2xl text-center border-dashed border">請先選擇上方「指定顧問」與「日期」</div> : clientAvailableSlots.length === 0 ? <div className="text-base text-rose-500 bg-rose-50 p-6 rounded-2xl text-center font-bold">該日無可預約時段</div> : (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             {clientAvailableSlots.map(slot => (
-                              <button key={slot} type="button" onClick={() => handleToggleClientSlot(slot)} className={`py-2 text-[13px] rounded-xl border font-bold ${formData.timeSlots.includes(slot) ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white text-slate-600'}`}>{slot}</button>
+                              <button key={slot} type="button" onClick={() => handleToggleClientSlot(slot)} className={`py-3 text-base rounded-xl border font-bold ${formData.timeSlots.includes(slot) ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white text-slate-600'}`}>{slot}</button>
                             ))}
                           </div>
                         )}
                       </div>
-                      {conflictError && <div className="p-3 bg-rose-50 text-rose-600 rounded-xl text-[13px] font-bold">{conflictError}</div>}
-                      <button type="submit" disabled={isSubmitting} className="w-full bg-[#192039] text-[#e3b5a1] font-bold py-4 rounded-2xl shadow-lg mt-4 disabled:opacity-70">確認預約時段</button>
+                      {conflictError && <div className="p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-base font-bold flex items-center gap-2"><AlertTriangle size={20} className="shrink-0" /> {conflictError}</div>}
+                      <button type="submit" disabled={isSubmitting} className="w-full bg-[#192039] text-[#e3b5a1] font-bold py-4 rounded-2xl shadow-lg mt-6 text-lg disabled:opacity-70">確認預約時段</button>
                     </form>
                   </div>
                 )}
@@ -1186,27 +1193,27 @@ const handleDeleteAdvisor = async (id, name) => {
 
             {appMode === 'tracking' && (
               <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 relative min-h-[400px]">
-                <h2 className="text-lg font-bold mb-6 flex items-center gap-2 text-[#192039] border-b pb-4"><Calendar className="text-[#9aa486]" />查詢與管理我的預約</h2>
-                <form onSubmit={handleSearchAppt} className="flex gap-2 mb-6">
-                  <input type="tel" value={clientSearchPhone} onChange={(e) => setClientSearchPhone(e.target.value)} placeholder="請輸入您預約時的電話號碼" className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#e3b5a1] font-bold" required />
-                  <button type="submit" className="bg-[#192039] text-[#e3b5a1] px-6 rounded-xl font-bold hover:bg-slate-800 transition-colors">查詢</button>
+                <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-[#192039] border-b pb-4"><Calendar className="text-[#9aa486]" /> 查詢與管理我的預約</h2>
+                <form onSubmit={handleSearchAppt} className="flex flex-col sm:flex-row gap-3 mb-8">
+                  <input type="text" value={clientSearchPhone} onChange={(e) => setClientSearchPhone(e.target.value)} placeholder="請輸入您預約時的電話號碼或 LINE ID" className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1] font-bold" required />
+                  <button type="submit" className="bg-[#192039] text-[#e3b5a1] py-4 px-8 rounded-xl font-bold hover:bg-slate-800 transition-colors text-lg">查詢</button>
                 </form>
                 <div className="space-y-4">
-                  {hasSearched && clientAppts.length === 0 && <p className="text-center text-slate-400 py-8 text-sm">找不到此電話的預約紀錄</p>}
+                  {hasSearched && clientAppts.length === 0 && <p className="text-center text-slate-400 py-10 text-base">找不到此電話或 LINE ID 的預約紀錄</p>}
                   {clientAppts.map((appt, idx) => (
-                    <div key={idx} className="border border-slate-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div key={idx} className="border border-slate-200 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-bold text-slate-800">{appt.date}</span>
-                          <span className={`text-[11px] px-2 py-0.5 rounded font-bold ${appt.status === 'confirmed' ? 'bg-blue-100 text-blue-700' : appt.status === '已完成' ? 'bg-green-100 text-green-700' : 'bg-rose-100 text-rose-700'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="font-bold text-slate-800 text-lg">{appt.date}</span>
+                          <span className={`text-sm px-2 py-1 rounded font-bold ${appt.status === 'confirmed' ? 'bg-blue-100 text-blue-700' : appt.status === '已完成' ? 'bg-green-100 text-green-700' : 'bg-rose-100 text-rose-700'}`}>
                             {appt.status === 'confirmed' ? '保留中' : appt.status}
                           </span>
                         </div>
-                        <p className="text-sm text-slate-600">{appt.exactDisplayTime} | {appt.serviceType}</p>
-                        <p className="text-xs text-slate-400 mt-1">顧問: {appt.advisorName}</p>
+                        <p className="text-base text-slate-600 font-bold">{appt.exactDisplayTime} | {appt.serviceType}</p>
+                        <p className="text-sm text-slate-500 mt-1">顧問: {appt.advisorName}</p>
                       </div>
                       {appt.status === 'confirmed' && (
-                        <button onClick={() => { alert('為確保品質，變更預約請聯繫官方 LINE 由專人為您服務'); }} className="text-xs bg-slate-100 text-slate-600 px-3 py-2 rounded-lg font-bold hover:bg-slate-200">
+                        <button onClick={() => { alert('為確保品質，變更預約請聯繫官方 LINE 由專人為您服務'); }} className="text-sm bg-slate-100 text-slate-600 px-4 py-2.5 rounded-lg font-bold hover:bg-slate-200 shadow-sm shrink-0">
                           申請變更
                         </button>
                       )}
@@ -1233,7 +1240,6 @@ const handleDeleteAdvisor = async (id, name) => {
               <div className="space-y-2 flex-1">
                 <button onClick={() => setAdminTab('appointments')} className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors ${adminTab === 'appointments' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:bg-white/5'}`}><Clipboard size={18} /> 預約戰情室</button>
                 
-                {/* 加入的日曆按鈕 */}
                 <button onClick={() => setAdminTab('calendar')} className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors ${adminTab === 'calendar' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:bg-white/5'}`}><Calendar size={18} /> 日曆檢視模式</button>
                 
                 <button onClick={() => setAdminTab('schedule')} className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors ${adminTab === 'schedule' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:bg-white/5'}`}><Calendar size={18} /> 排班系統</button>
@@ -1561,7 +1567,7 @@ const handleDeleteAdvisor = async (id, name) => {
               </div>
             )}
 
-           {/* ▼▼▼ Google Calendar 樣式戰情室 ▼▼▼ */}
+            {/* ▼▼▼ Google Calendar 樣式戰情室 ▼▼▼ */}
             {adminTab === 'calendar' && (
               <div className="space-y-4 p-4 md:p-6 animate-in fade-in h-full flex flex-col min-h-[750px]">
                 {/* 頂部工具列 */}
@@ -1580,7 +1586,6 @@ const handleDeleteAdvisor = async (id, name) => {
                   </div>
 
                   <div className="flex items-center gap-3 w-full lg:w-auto">
-                    {/* 權限控管：只有老闆可以看所有人，員工只能看自己 */}
                     {currentUser?.role === 'admin' && (
                       <select value={calTargetAdvisor} onChange={(e) => setCalTargetAdvisor(e.target.value)} className="p-2 text-sm font-bold border border-slate-200 rounded-lg outline-none bg-white shadow-sm flex-1 lg:flex-none">
                         <option value="all">👥 查看全團隊</option>
@@ -1613,14 +1618,12 @@ const handleDeleteAdvisor = async (id, name) => {
                       const isToday = dateStr === new Date().toISOString().split('T')[0];
                       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-                      // 篩選出該日的預約
                       const dayAppts = appointments.filter(a => {
                         if (a.date !== dateStr || a.status === '已取消') return false;
                         if (calTargetAdvisor !== 'all' && a.advisorId !== calTargetAdvisor) return false;
                         return true;
                       });
 
-                      // 計算當前時間紅線高度
                       const nowHour = currentTimeLine.getHours();
                       const nowMin = currentTimeLine.getMinutes();
                       const nowTop = ((nowHour - START_HOUR) * 2 + (nowMin / 30)) * SLOT_HEIGHT;
@@ -1640,7 +1643,6 @@ const handleDeleteAdvisor = async (id, name) => {
                           {/* 日曆背景格子 (點擊代客預約) */}
                           <div className="relative w-full">
                             {ALL_TIME_SLOTS.map((slot) => {
-                              // 檢查是否為排班時間 (若是排班，給予微綠底色)
                               const isWorking = schedules.find(s => s.date === dateStr && (calTargetAdvisor === 'all' || s.advisorId === calTargetAdvisor))?.slots?.includes(slot);
                               return (
                                 <div 
@@ -1929,11 +1931,11 @@ const handleDeleteAdvisor = async (id, name) => {
                 <div>
                   <label className="block text-sm mb-1.5 text-slate-300">聯絡電話</label>
                   <input 
-                    type="tel" 
+                    type="text" 
                     className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" 
                     value={rebookCustomer.phone} 
                     onChange={(e) => setRebookCustomer({...rebookCustomer, phone: e.target.value})} 
-                    placeholder="09XX..." 
+                    placeholder="09XX... 或 LINE" 
                   />
                 </div>
               </div>
