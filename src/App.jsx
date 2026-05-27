@@ -1589,65 +1589,7 @@ export default function App() {
                 )}
               </div>
             )}
-                </div>
-              </div>
-            )}
-
-            {adminTab === 'analytics' && currentUser.role === 'admin' && (
-              <div className="space-y-6 animate-in fade-in p-6">
-                <div className="flex justify-between items-center border-b pb-4"><h3 className="text-xl font-bold flex items-center gap-2"><BarChart className="text-indigo-600" /> 營業營收儀表板</h3></div>
-                <div className="flex gap-4 items-center bg-white p-4 rounded-2xl shadow-sm border">
-                  <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="p-2 border rounded-lg font-bold">
-                    {availableMonths.map(m => <option key={m} value={m}>{m} 月份</option>)}
-                  </select>
-                  <div className="flex gap-2 flex-wrap">
-                    {teamMembers.map(m => (
-                      <button key={m.id} onClick={() => setSelectedAnalyticsAdvisors(prev => prev.includes(m.id) ? prev.filter(x => x !== m.id) : [...prev, m.id])} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border border-transparent ${selectedAnalyticsAdvisors.includes(m.id) ? 'bg-[#192039] text-[#e3b5a1] border-[#192039] shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}>{m.name}</button>
-                    ))}
-                  </div>
-                </div>
-                {analyticsData && (
-                  <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-gradient-to-br from-[#192039] to-[#232d4e] p-5 rounded-2xl shadow-sm border border-[#192039] text-center">
-                        <p className="text-[#e3b5a1] text-xs font-bold mb-1">總預估產值 (NT$)</p><h2 className="text-3xl font-extrabold text-white">${(analyticsData.kpi.totalHours * SESSION_PRICE).toLocaleString()}</h2>
-                      </div>
-                      <div className="bg-white p-5 rounded-2xl shadow-sm border text-center">
-                        <p className="text-slate-500 text-xs font-bold mb-1">總接單數</p><h2 className="text-3xl font-extrabold text-[#192039]">{analyticsData.kpi.total}</h2>
-                      </div>
-                      <div className="bg-blue-50 p-5 rounded-2xl shadow-sm border border-blue-200 text-center">
-                        <p className="text-blue-600 text-xs font-bold mb-1">服務總時數 (hr)</p><h2 className="text-3xl font-extrabold text-[#192039]">{analyticsData.kpi.totalHours}</h2>
-                      </div>
-                      <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 text-center">
-                        <p className="text-amber-600 text-xs font-bold mb-1">新舊客佔比</p><h2 className="text-lg font-extrabold text-amber-700 mt-2">新 {analyticsData.kpi.new} : 舊 {analyticsData.kpi.return}</h2>
-                      </div>
-                    </div>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border mt-6">
-                      <h4 className="font-bold flex items-center gap-2 mb-4 text-lg"><Users className="text-blue-500" /> 顧問績效與工時統計表</h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                          <thead><tr className="border-b text-slate-500"><th className="pb-3 font-bold">顧問名稱</th><th className="pb-3 font-bold text-center">接單數</th><th className="pb-3 font-bold text-center">總工時 (小時)</th><th className="pb-3 font-bold text-right">該顧問貢獻產值 (NT$)</th></tr></thead>
-                          <tbody>
-                            {teamMembers.map(m => {
-                              const stats = analyticsData.advisorStats[m.id] || { count: 0, hours: 0 };
-                              const revenue = stats.hours * SESSION_PRICE;
-                              if (stats.count === 0) return null;
-                              return (
-                                <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                  <td className="py-4 font-bold text-slate-700 text-[15px]">{m.name}</td><td className="py-4 text-center font-medium text-slate-600">{stats.count} 單</td>
-                                  <td className="py-4 text-center font-bold text-blue-600 text-[15px]">{stats.hours} hr</td><td className="py-4 text-right font-bold text-green-600 text-[15px]">${revenue.toLocaleString()}</td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
+               
             {adminTab === 'appointments' && (
               <div className="space-y-4 p-6">
                 <div className="flex justify-between items-center mb-4 border-b pb-4 gap-4 flex-wrap">
