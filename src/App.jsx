@@ -294,6 +294,54 @@ export default function App() {
   const [priceList, setPriceList] = useState({ services: [], addons: [] });
   const [newProduct, setNewProduct] = useState({ type: 'services', name: '', price: '' });
 
+  // 營收細項摺疊與編輯狀態
+  const [expandedRevCustomer, setExpandedRevCustomer] = useState(null);
+  const [editingRevenue, setEditingRevenue] = useState(null);
+
+  // 以客人為索引，動態計算該月的營收分組
+  const monthlyRevenuesByCustomer = useMemo(() => {
+    const filtered = revenueRecords.filter(r => r.date && r.date.startsWith(selectedMonth));
+    const groups = {};
+    filtered.forEach(r => {
+      let cName = "一般現場客";
+      // 從明細中尋找括號裡的客戶名稱 (例如: "基礎服務 (王大明)")
+      const baseItem = (r.items || []).find(i => i.isBase || i.name.includes('('));
+      if (baseItem) {
+        const match = baseItem.name.match(/\(([^)]+)\)/);
+        if (match) cName = match[1];
+      }
+      if (!groups[cName]) groups[cName] = { total: 0, records: [] };
+      groups[cName].records.push(r);
+      groups[cName].total += r.finalAmount;
+    });
+    // 依據該客人的總消費金額由高到低排序
+    return Object.entries(groups).sort((a, b) => b[1].total - a[1].total);
+  }, [revenueRecords, selectedMonth]);
+
+  // 修改營收紀錄
+  const handleUpdateRevenue = async (e) => {
+    e.preventDefault();
+    try {
+      await setDoc(doc(db, "revenueRecords", editingRevenue.id), {
+        finalAmount: Number(editingRevenue.finalAmount),
+        advisorId: editingRevenue.advisorId,
+        date: editingRevenue.date
+      }, { merge: true });
+      setEditingRevenue(null);
+      alert("✅ 營收紀錄修改成功！");
+    } catch (err) { alert("修改失敗：" + err.message); }
+  };
+
+  // 刪除營收紀錄
+  const handleDeleteRevenue = async (id) => {
+    if (window.confirm("⚠️ 確定要刪除這筆營收紀錄嗎？\n(刪除後將從本月報表中永久移除，無法復原)")) {
+      try {
+        await deleteDoc(doc(db, "revenueRecords", id));
+        alert("🗑️ 已成功刪除！");
+      } catch (err) { alert("刪除失敗：" + err.message); }
+    }
+  };
+  
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
   const calcFinalAmount = Math.round(cartTotal * (Number(calcDiscount) || 10) / 10);
 
@@ -1412,6 +1460,85 @@ export default function App() {
                       </table>
                     </div>
                   </div>
+                  </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* ▼▼▼ 新增：以客戶為索引的營收細項與編輯區 ▼▼▼ */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border mt-6">
+                      <h4 className="font-bold flex items-center gap-2 mb-4 text-lg"><FileText className="text-emerald-500" /> 交易明細與客群檢視 (摺疊面板)</h4>
+                      <p className="text-sm text-slate-500 mb-4">以客人名字為索引。點擊即可展開查看該客人的詳細購買品項，並可修改金額、歸屬顧問或刪除廢單。</p>
+                      
+                      <div className="space-y-3">
+                        {monthlyRevenuesByCustomer.length === 0 ? (
+                          <div className="text-center py-8 text-slate-400 border border-dashed rounded-xl border-slate-200">本月尚無任何交易明細</div>
+                        ) : (
+                          monthlyRevenuesByCustomer.map(([cName, group]) => (
+                            <div key={cName} className="border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:border-[#9aa486] transition-colors">
+                              {/* 摺疊標題區 */}
+                              <div onClick={() => setExpandedRevCustomer(expandedRevCustomer === cName ? null : cName)} className={`flex justify-between items-center p-4 cursor-pointer hover:bg-slate-50 transition-colors ${expandedRevCustomer === cName ? 'bg-slate-50 border-b border-slate-200' : ''}`}>
+                                <div className="flex items-center gap-3">
+                                  <span className="font-bold text-slate-800 text-[15px]">{cName}</span>
+                                  <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">共 {group.records.length} 筆</span>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  <span className="font-bold text-emerald-600">${group.total.toLocaleString()}</span>
+                                  <span className="text-slate-400 text-xs font-bold">{expandedRevCustomer === cName ? '▲ 收起' : '▼ 展開'}</span>
+                                </div>
+                              </div>
+                              
+                              {/* 摺疊內容區 (展開才顯示) */}
+                              {expandedRevCustomer === cName && (
+                                <div className="p-4 bg-slate-50/80 space-y-3">
+                                  {group.records.map(rec => {
+                                    const advisor = teamMembers.find(m => m.id === rec.advisorId);
+                                    // 轉換 ISO 時間為直觀格式
+                                    const dateObj = new Date(rec.date);
+                                    const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')} ${String(dateObj.getHours()).padStart(2,'0')}:${String(dateObj.getMinutes()).padStart(2,'0')}`;
+                                    
+                                    return (
+                                      <div key={rec.id} className="bg-white border border-slate-200 p-4 rounded-lg flex flex-col sm:flex-row justify-between gap-4 shadow-sm">
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-sm font-bold text-slate-700">{dateStr}</span>
+                                            <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-bold">收款: {advisor ? advisor.name : rec.advisorId}</span>
+                                          </div>
+                                          <ul className="text-[13px] text-slate-600 space-y-1 mb-3">
+                                            {rec.items?.map((item, idx) => (
+                                              <li key={idx} className="flex items-center gap-2">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-[#e3b5a1]"></span>
+                                                {item.name} x {item.qty} <span className="text-slate-400">(${item.price * item.qty})</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                          <div className="text-[11px] text-slate-400 font-bold bg-slate-50 p-1.5 rounded inline-block border border-slate-100">
+                                            原價總額 ${rec.originalPrice} | 結帳折扣 {rec.discount} 折
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 border-t sm:border-t-0 sm:border-l border-slate-100 pt-3 sm:pt-0 sm:pl-4 min-w-[120px]">
+                                          <span className="font-extrabold text-xl text-[#192039]">${rec.finalAmount.toLocaleString()}</span>
+                                          <div className="flex gap-2 w-full sm:w-auto">
+                                            <button onClick={() => setEditingRevenue({id: rec.id, finalAmount: rec.finalAmount, advisorId: rec.advisorId, date: rec.date})} className="flex-1 sm:flex-none text-[12px] bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 px-3 py-1.5 rounded-lg font-bold transition-colors">修改</button>
+                                            <button onClick={() => handleDeleteRevenue(rec.id)} className="flex-1 sm:flex-none text-[12px] bg-rose-50 hover:bg-rose-500 text-rose-500 hover:text-white border border-rose-200 hover:border-rose-500 px-3 py-1.5 rounded-lg font-bold transition-colors">刪除</button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    {/* ▲▲▲ 新增區塊結束 ▲▲▲ */}
+                  </>
+                )}
+              </div>
+            )}
                 </div>
               </div>
             )}
@@ -1553,12 +1680,29 @@ export default function App() {
                             <button onClick={() => handleUpdateApptStatus(appt, '已完成')} disabled={appt.status === '已完成' || appt.status === '已取消'} className="px-3 py-1.5 text-sm font-bold rounded-lg bg-[#9aa486] text-white hover:bg-[#868f74] disabled:opacity-50">✓ 完成</button>
                             <button onClick={() => handleUpdateApptStatus(appt, '已取消')} disabled={appt.status === '已取消'} className="px-3 py-1.5 text-sm font-bold rounded-lg bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50">✕ 取消</button>
                             {appt.status === '已取消' && (
-                              <button onClick={async () => {
-                                if (window.confirm(`⚠️ 確定要徹底刪除 ${appt.name} 的這筆廢單嗎？(刪除後無法恢復)`)) {
-                                  try { await deleteDoc(doc(db, "appointments", appt.id)); } catch (error) { alert("刪除失敗：" + error.message); }
-                                }
-                              }} className="px-3 py-1.5 text-sm font-bold rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 hover:text-rose-600 transition-colors shadow-sm">🗑️ 刪除</button>
-                            )}
+  <button onClick={async () => {
+    if (window.confirm(`⚠️ 確定要徹底刪除 ${appt.name} 的這筆廢單嗎？(刪除後無法恢復)`)) {
+      try { 
+        // 1. 刪除 Firebase 資料
+        await deleteDoc(doc(db, "appointments", appt.id)); 
+        
+        // 2. 同步通知 Google Sheets 與日曆刪除 (加強連動)
+        if (typeof WEBHOOK_URL === 'string' && WEBHOOK_URL.startsWith("http")) {
+          fetch(WEBHOOK_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              action: "delete", 
+              name: appt.name, 
+              date: appt.date 
+            })
+          });
+        }
+      } catch (error) { alert("刪除失敗：" + error.message); }
+    }
+  }} className="px-3 py-1.5 text-sm font-bold rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 hover:text-rose-600 transition-colors shadow-sm">🗑️ 刪除</button>
+)}
                           </div>
                         </div>
                       ))
@@ -1806,6 +1950,38 @@ export default function App() {
         )}
         <BrandFooter />
       </div>
+
+{/* 修改營收紀錄的彈出視窗 */}
+      {editingRevenue && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] flex justify-center items-center p-4">
+          <div className="bg-white p-6 md:p-8 rounded-3xl w-full max-w-sm shadow-2xl relative animate-in fade-in zoom-in-95">
+            <button onClick={() => setEditingRevenue(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">✕</button>
+            <h3 className="text-xl font-bold text-[#192039] mb-5 border-b border-slate-100 pb-3 flex items-center gap-2"><Edit2 size={20} className="text-[#9aa486]" /> 修改營收明細</h3>
+            
+            <form onSubmit={handleUpdateRevenue} className="space-y-4">
+              <div>
+                <label className="block text-[13px] font-bold text-slate-600 mb-1.5">交易時間 (可修正補單時間)</label>
+                <input type="datetime-local" step="1" value={editingRevenue.date.substring(0, 19)} onChange={e => setEditingRevenue({...editingRevenue, date: new Date(e.target.value).toISOString()})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[14px] outline-none focus:ring-2 focus:ring-[#e3b5a1]" required />
+              </div>
+              <div>
+                <label className="block text-[13px] font-bold text-slate-600 mb-1.5">業績歸屬顧問 (收款人)</label>
+                <select value={editingRevenue.advisorId} onChange={e => setEditingRevenue({...editingRevenue, advisorId: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[14px] font-bold outline-none focus:ring-2 focus:ring-[#e3b5a1]">
+                  {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[13px] font-bold text-slate-600 mb-1.5">最終實收金額 ($)</label>
+                <input type="number" value={editingRevenue.finalAmount} onChange={e => setEditingRevenue({...editingRevenue, finalAmount: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xl font-bold text-rose-600 outline-none focus:ring-2 focus:ring-rose-300" required />
+              </div>
+              
+              <div className="flex gap-3 mt-8 pt-2">
+                <button type="button" onClick={() => setEditingRevenue(null)} className="flex-1 bg-slate-100 text-slate-600 font-bold py-3.5 rounded-xl hover:bg-slate-200 transition-colors">取消</button>
+                <button type="submit" className="flex-1 bg-[#192039] text-[#e3b5a1] font-bold py-3.5 rounded-xl shadow-md hover:bg-slate-800 transition-colors">儲存修改</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showPOS && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[200] flex justify-center items-center p-4">
