@@ -496,6 +496,10 @@ export default function App() {
     if (user) {
       setCurrentUser(user); setScheduleAdvisorId(user.id); setShowLoginModal(false);
       setLoginForm({ account: teamMembers[0]?.id || 'ted', password: '' }); setApptFilter('today'); setAdminViewAdvisor('all');
+
+      // 👇 就是加上下面這行！讓登入時自動把日曆視角綁定正確的值
+      setCalTargetAdvisor(user.role === 'admin' ? 'all' : user.id);
+      
     } else { alert("密碼錯誤！請重新輸入。"); }
   };
 
