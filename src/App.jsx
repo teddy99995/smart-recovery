@@ -393,23 +393,26 @@ const renderCalendarCell = (slot, date, advId) => {
     const unsubMemos = onSnapshot(query(collection(db, "customerMemos")), (snapshot) => {
       const memos = {};
       
- const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
+const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
+      // 1. 如果資料庫還沒有建立名單，先初始化寫入預設值
+      if (!docSnap.exists() || !docSnap.data().members) {
+        setDoc(doc(db, "settings", "teamList"), { members: DEFAULT_TEAM });
+      }
+      
+      // 2. 取得成員資料 (如果剛好沒有就先用預設值墊檔)
       let members = docSnap.exists() && docSnap.data().members ? docSnap.data().members : DEFAULT_TEAM;
       
-      // 🛡️ 安全模式後門：如果有人在後台惡意刪除 admin，就在前端記憶體中強行注入復活
+      // 3. 🛡️ 安全模式後門：強行注入或保護 admin 權限
       if (!members.find(m => m.id === 'admin')) {
         members.push({ id: 'admin', name: '最高管理員 (安全模式)', pwd: 'admin', role: 'admin' });
       } else {
-        // 強制在代碼層級鎖死 admin 的權限為最高管理員(admin)，防止被同行降級成一般顧問
+        // 強制在代碼層級鎖死 admin 的權限為最高管理員(admin)，防止被同行降級
         const adminIdx = members.findIndex(m => m.id === 'admin');
         members[adminIdx].role = 'admin'; 
       }
       
+      // 4. 更新至 React 狀態中
       setTeamMembers(members);
-    });
-    const unsubTeam = onSnapshot(doc(db, "settings", "teamList"), (docSnap) => {
-      if (docSnap.exists() && docSnap.data().members) { setTeamMembers(docSnap.data().members); }
-      else { setDoc(doc(db, "settings", "teamList"), { members: DEFAULT_TEAM }); }
     });
 
     // 新增：監聽營收紀錄 (Firebase 同步)
