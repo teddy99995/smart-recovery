@@ -1892,75 +1892,179 @@ const handleDeleteAdvisor = async (id, name) => {
           </div>
         </div>
       )}
-
-   {showRebookModal && (
+{showRebookModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
           <div className="bg-[#1E293B] text-white p-6 rounded-2xl w-full max-w-md shadow-2xl relative">
-            <button onClick={() => setShowRebookModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
+            
+            {/* 關閉按鈕 */}
+            <button 
+              onClick={() => setShowRebookModal(false)} 
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              ✕
+            </button>
+            
+            {/* 標題 */}
             <h2 className="text-xl font-bold mb-4 border-b border-gray-600 pb-4 flex items-center gap-2">
               <CalendarPlus className="text-[#9aa486]" /> 內部代客預約
             </h2>
+            
+            {/* 表單內容 */}
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm mb-1.5 text-slate-300">客人姓名 *</label>
-                  <input type="text" className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookCustomer.name} onChange={(e) => setRebookCustomer({...rebookCustomer, name: e.target.value})} placeholder="例如: 王大明" />
+                  <input 
+                    type="text" 
+                    className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" 
+                    value={rebookCustomer.name} 
+                    onChange={(e) => setRebookCustomer({...rebookCustomer, name: e.target.value})} 
+                    placeholder="例如: 王大明" 
+                  />
                 </div>
                 <div>
                   <label className="block text-sm mb-1.5 text-slate-300">聯絡電話</label>
-                  <input type="tel" className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookCustomer.phone} onChange={(e) => setRebookCustomer({...rebookCustomer, phone: e.target.value})} placeholder="09XX..." />
+                  <input 
+                    type="tel" 
+                    className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" 
+                    value={rebookCustomer.phone} 
+                    onChange={(e) => setRebookCustomer({...rebookCustomer, phone: e.target.value})} 
+                    placeholder="09XX..." 
+                  />
                 </div>
               </div>
+              
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">指定顧問 (已為您帶入)</label>
-                <select className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.consultant} onChange={(e) => setRebookFormData({ ...rebookFormData, consultant: e.target.value, time: "" })}>
-                  <option value="">請選擇顧問</option>{teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                <select 
+                  className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" 
+                  value={rebookFormData.consultant} 
+                  onChange={(e) => setRebookFormData({ ...rebookFormData, consultant: e.target.value, time: "" })}
+                >
+                  <option value="">請選擇顧問</option>
+                  {teamMembers.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
                 </select>
               </div>
+              
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">選擇日期</label>
-                <input type="date" min={new Date().toISOString().split('T')[0]} className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.date} onChange={(e) => setRebookFormData({ ...rebookFormData, date: e.target.value, time: "" })} />
+                <input 
+                  type="date" 
+                  min={new Date().toISOString().split('T')[0]} 
+                  className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" 
+                  value={rebookFormData.date} 
+                  onChange={(e) => setRebookFormData({ ...rebookFormData, date: e.target.value, time: "" })} 
+                />
               </div>
+              
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">選擇時間</label>
                 {!rebookFormData.date || !rebookFormData.consultant ? (
-                  <div className="text-[13px] text-gray-400 bg-gray-800 p-3 rounded-lg text-center border-dashed border border-gray-600">請先確認上方「顧問」與「日期」</div>
+                  <div className="text-[13px] text-gray-400 bg-gray-800 p-3 rounded-lg text-center border-dashed border border-gray-600">
+                    請先確認上方「顧問」與「日期」
+                  </div>
                 ) : rebookAvailableSlots.length === 0 ? (
-                  <div className="text-[13px] text-rose-400 bg-rose-900/20 p-3 rounded-lg text-center border border-rose-900/50">該顧問此日無空檔或未排班</div>
+                  <div className="text-[13px] text-rose-400 bg-rose-900/20 p-3 rounded-lg text-center border border-rose-900/50">
+                    該顧問此日無空檔或未排班
+                  </div>
                 ) : (
-                  <select className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.time} onChange={(e) => setRebookFormData({...rebookFormData, time: e.target.value})}>
-                    <option value="">請選擇時段</option>{rebookAvailableSlots.map(slot => <option key={slot} value={slot}>{slot}</option>)}
+                  <select 
+                    className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" 
+                    value={rebookFormData.time} 
+                    onChange={(e) => setRebookFormData({...rebookFormData, time: e.target.value})}
+                  >
+                    <option value="">請選擇時段</option>
+                    {rebookAvailableSlots.map(slot => (
+                      <option key={slot} value={slot}>{slot}</option>
+                    ))}
                   </select>
                 )}
               </div>
+              
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">預約項目 (已為您帶入上次項目)</label>
-                <select className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.service} onChange={(e) => setRebookFormData({...rebookFormData, service: e.target.value})}>
-                  <option value="">請選擇項目</option>{serviceTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                <select 
+                  className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" 
+                  value={rebookFormData.service} 
+                  onChange={(e) => setRebookFormData({...rebookFormData, service: e.target.value})}
+                >
+                  <option value="">請選擇項目</option>
+                  {serviceTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
                 </select>
               </div>
             </div>
             
+            {/* 按鈕區塊 */}
             <div className="mt-8 flex justify-end space-x-3">
-              <button className="px-4 py-2.5 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors text-sm font-bold" onClick={() => setShowRebookModal(false)}>取消</button>
-              <button className="px-6 py-2.5 bg-[#9aa486] rounded-lg hover:bg-[#868f74] text-[#192039] font-bold transition-colors shadow-lg" onClick={async () => {
-                if(!rebookFormData.date || !rebookFormData.time || !rebookFormData.service || !rebookFormData.consultant) { alert("請填寫完整預約資料！"); return; }
-                const finalAdvisorName = teamMembers.find(m => m.id === rebookFormData.consultant)?.name || '未指定';
-                try {
-                  await addDoc(collection(db, "appointments"), {
-                    name: rebookCustomer.name, phone: rebookCustomer.phone, isFirstTime: 'no', advisorId: rebookFormData.consultant, advisorName: finalAdvisorName,
-                    customerType: '舊客複診', serviceType: rebookFormData.service, date: rebookFormData.date, timeSlots: [rebookFormData.time], exactDisplayTime: rebookFormData.time,
-                    gasTime: rebookFormData.time, needs: '現場預約下次', status: 'confirmed', createdAt: new Date().toISOString()
-                  });
-                  if (WEBHOOK_URL.startsWith("http")) {
-                    fetch(WEBHOOK_URL, {
-                      method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ action: "new", name: rebookCustomer.name, date: rebookFormData.date, time: rebookFormData.time, service: `[舊客複診] ${rebookFormData.service} (指定：${finalAdvisorName})`, phone: rebookCustomer.phone, needs: "現場直接預約下次" })
-                    });
+              <button 
+                className="px-4 py-2.5 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors text-sm font-bold" 
+                onClick={() => setShowRebookModal(false)}
+              >
+                取消
+              </button>
+              <button 
+                className="px-6 py-2.5 bg-[#9aa486] rounded-lg hover:bg-[#868f74] text-[#192039] font-bold transition-colors shadow-lg" 
+                onClick={async () => {
+                  // 1. 表單驗證
+                  if(!rebookFormData.date || !rebookFormData.time || !rebookFormData.service || !rebookFormData.consultant) { 
+                    alert("請填寫完整預約資料！"); 
+                    return; 
                   }
-                  alert("✅ 現場預約大成功！資料已同步至戰情室與 LINE。"); setShowRebookModal(false); 
-                } catch (error) { alert("預約失敗，請稍後再試：" + error.message); }
-              }}>確認送出預約</button>
+                  
+                  const finalAdvisorName = teamMembers.find(m => m.id === rebookFormData.consultant)?.name || '未指定';
+                  
+                  try {
+                    // 2. 寫入 Firebase
+                    await addDoc(collection(db, "appointments"), {
+                      name: rebookCustomer.name, 
+                      phone: rebookCustomer.phone, 
+                      isFirstTime: 'no', 
+                      advisorId: rebookFormData.consultant, 
+                      advisorName: finalAdvisorName,
+                      customerType: '舊客複診', 
+                      serviceType: rebookFormData.service, 
+                      date: rebookFormData.date, 
+                      timeSlots: [rebookFormData.time], 
+                      exactDisplayTime: rebookFormData.time,
+                      gasTime: rebookFormData.time, 
+                      needs: '現場預約下次', 
+                      status: 'confirmed', 
+                      createdAt: new Date().toISOString()
+                    });
+                    
+                    // 3. 發送 Webhook (LINE 或其他通知)
+                    if (typeof WEBHOOK_URL === 'string' && WEBHOOK_URL.startsWith("http")) {
+                      fetch(WEBHOOK_URL, {
+                        method: 'POST', 
+                        mode: 'no-cors', 
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                          action: "new", 
+                          name: rebookCustomer.name, 
+                          date: rebookFormData.date, 
+                          time: rebookFormData.time, 
+                          service: `[舊客複診] ${rebookFormData.service} (指定：${finalAdvisorName})`, 
+                          phone: rebookCustomer.phone, 
+                          needs: "現場直接預約下次" 
+                        })
+                      });
+                    }
+                    
+                    // 4. 成功回饋
+                    alert("✅ 現場預約大成功！資料已同步至戰情室與 LINE。"); 
+                    setShowRebookModal(false); 
+
+                  } catch (error) { 
+                    alert("預約失敗，請稍後再試：" + error.message); 
+                  }
+                }}
+              >
+                確認送出預約
+              </button>
             </div>
           </div>
         </div>
