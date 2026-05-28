@@ -209,11 +209,6 @@ const getDayLabel = (dateStr) => {
 // ==============================================
 export default function App() {
 
-// ==============================================
-// 🚀 核心 App 元件開始
-// ==============================================
-export default function App() {
-
   // ⭐️⭐️⭐️ 修復點：把核心狀態宣告移到最上面，避免白畫面錯誤 ⭐️⭐️⭐️
   const [appointments, setAppointments] = useState([]);
   const [schedules, setSchedules] = useState([]);
