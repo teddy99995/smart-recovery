@@ -209,6 +209,17 @@ const getDayLabel = (dateStr) => {
 // ==============================================
 export default function App() {
 
+// ==============================================
+// 🚀 核心 App 元件開始
+// ==============================================
+export default function App() {
+
+  // ⭐️⭐️⭐️ 修復點：把核心狀態宣告移到最上面，避免白畫面錯誤 ⭐️⭐️⭐️
+  const [appointments, setAppointments] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [customerMemos, setCustomerMemos] = useState({});
+  const [teamMembers, setTeamMembers] = useState(DEFAULT_TEAM);
+
   // ==========================================
   // 👇 新增：改期系統專用狀態與邏輯 👇
   // ==========================================
@@ -285,14 +296,9 @@ export default function App() {
   };
   // ==========================================
   
-  const [appointments, setAppointments] = useState([]);
-  const [schedules, setSchedules] = useState([]);
-  const [customerMemos, setCustomerMemos] = useState({});
-
   const [isAdminHidden, setIsAdminHidden] = useState(false);
   const [isManualLogin, setIsManualLogin] = useState(false);
   
-  const [teamMembers, setTeamMembers] = useState(DEFAULT_TEAM);
   const [activeAdvisors, setActiveAdvisors] = useState(DEFAULT_TEAM.map(m => m.id));
   const [currentUser, setCurrentUser] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
