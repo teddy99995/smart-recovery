@@ -2260,16 +2260,7 @@ export default function App() {
                   </select>
                 )}
               </div>
-
-            <div className="mt-8 flex justify-end space-x-3 border-t border-gray-600 pt-4">
-              <button className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors text-sm font-bold" onClick={() => setEditingAppt(null)}>取消</button>
-              <button className="px-5 py-2 bg-amber-500 rounded-lg hover:bg-amber-600 text-white font-bold transition-colors shadow-lg flex items-center gap-2" onClick={handleSaveEditAppt}>
-                <CheckCircle size={16} /> 儲存新時間
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">預約項目 (已為您帶入上次項目)</label>
                 <select 
@@ -2293,10 +2284,9 @@ export default function App() {
               >
                 取消
               </button>
-             <button 
+              <button 
                 className="px-6 py-2.5 bg-[#9aa486] rounded-lg hover:bg-[#868f74] text-[#192039] font-bold transition-colors shadow-lg" 
                 onClick={async () => {
-                  // 1. 表單驗證
                   if(!rebookFormData.date || !rebookFormData.time || !rebookFormData.service || !rebookFormData.consultant) { 
                     alert("請填寫完整預約資料！"); 
                     return; 
@@ -2305,7 +2295,6 @@ export default function App() {
                   const finalAdvisorName = teamMembers.find(m => m.id === rebookFormData.consultant)?.name || '未指定';
                   
                   try {
-                    // 2. 寫入 Firebase
                     await addDoc(collection(db, "appointments"), {
                       name: rebookCustomer.name, 
                       phone: rebookCustomer.phone, 
@@ -2323,7 +2312,6 @@ export default function App() {
                       createdAt: new Date().toISOString()
                     });
                     
-                    // 3. 發送 Webhook (LINE 或其他通知)
                     if (typeof WEBHOOK_URL === 'string' && WEBHOOK_URL.startsWith("http")) {
                       fetch(WEBHOOK_URL, {
                         method: 'POST', 
@@ -2341,7 +2329,6 @@ export default function App() {
                       });
                     }
                     
-                    // 4. 成功回饋
                     alert("✅ 現場預約大成功！資料已同步至戰情室與 LINE。"); 
                     setShowRebookModal(false); 
 
@@ -2358,7 +2345,7 @@ export default function App() {
       )}
 
       {/* ============================================== */}
-      {/* 👇 修改預約日期/時間的彈出視窗 (移至最外層) 👇    */}
+      {/* 👇 修改預約日期/時間的彈出視窗 (獨立在最外層) 👇    */}
       {/* ============================================== */}
       {editingAppt && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[300] p-4">
