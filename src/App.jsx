@@ -2356,10 +2356,12 @@ export default function App() {
           </div>
         </div>
       )}
-{/* 👇 新增：修改預約日期/時間的彈出視窗 👇           */}
+
+      {/* ============================================== */}
+      {/* 👇 修改預約日期/時間的彈出視窗 (移至最外層) 👇    */}
       {/* ============================================== */}
       {editingAppt && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[300] p-4">
           <div className="bg-[#1E293B] text-white p-6 rounded-2xl w-full max-w-md shadow-2xl relative animate-in zoom-in-95">
             <button onClick={() => setEditingAppt(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
             <h2 className="text-xl font-bold mb-4 border-b border-gray-600 pb-4 flex items-center gap-2 text-amber-400">
@@ -2420,6 +2422,17 @@ export default function App() {
                 )}
               </div>
             </div>
+
+            <div className="mt-8 flex justify-end space-x-3 border-t border-gray-600 pt-4">
+              <button className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors text-sm font-bold" onClick={() => setEditingAppt(null)}>取消</button>
+              <button className="px-5 py-2 bg-amber-500 rounded-lg hover:bg-amber-600 text-white font-bold transition-colors shadow-lg flex items-center gap-2" onClick={handleSaveEditAppt}>
+                <CheckCircle size={16} /> 儲存新時間
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
