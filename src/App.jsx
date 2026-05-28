@@ -1289,6 +1289,7 @@ export default function App() {
                       {conflictError && <div className="p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-base font-bold flex items-center gap-2"><AlertTriangle size={20} className="shrink-0" /> {conflictError}</div>}
                       <button type="submit" disabled={isSubmitting} className="w-full bg-[#192039] text-[#e3b5a1] font-bold py-4 rounded-2xl shadow-lg mt-6 text-lg disabled:opacity-70">確認預約時段</button>
                     </form>
+                    </div>
                   </div>
                 )}
               </>
