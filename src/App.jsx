@@ -42,81 +42,6 @@ const serviceTypes = [
   "身體大保養", "其他（詳情請打在備註）"
 ];
 
-// ==========================================
-  // 👇 新增：改期系統專用狀態與邏輯 👇
-  // ==========================================
-  const [editingAppt, setEditingAppt] = useState(null);
-  const [editFormData, setEditFormData] = useState({ date: '', timeSlots: [], advisorId: '' });
-
-  // 計算改期時可用的空檔 (要排除別人約走的，但保留自己原本佔用的時段)
-  const editAvailableSlots = useMemo(() => {
-    if (!editFormData.date || !editFormData.advisorId) return [];
-    const dailySchedule = schedules.find(s => s.advisorId === editFormData.advisorId && s.date === editFormData.date);
-    if (!dailySchedule || !dailySchedule.slots) return [];
-    
-    const bookedSlots = appointments.filter(a => 
-      a.advisorId === editFormData.advisorId && 
-      a.date === editFormData.date && 
-      a.status !== '已取消' &&
-      a.id !== editingAppt?.id // ⭐️ 排除這筆訂單自己，避免自己卡自己
-    ).flatMap(a => a.timeSlots || []);
-    
-    return dailySchedule.slots.filter(slot => !bookedSlots.includes(slot)).sort();
-  }, [editFormData.date, editFormData.advisorId, schedules, appointments, editingAppt]);
-
-  const handleOpenEditModal = (appt) => {
-    setEditingAppt(appt);
-    setEditFormData({
-      date: appt.date,
-      timeSlots: appt.timeSlots || [],
-      advisorId: appt.advisorId
-    });
-  };
-
-  const handleToggleEditSlot = (slot) => {
-    setEditFormData(prev => ({
-      ...prev,
-      timeSlots: prev.timeSlots.includes(slot) ? prev.timeSlots.filter(s => s !== slot) : [...prev.timeSlots, slot]
-    }));
-  };
-
-  const handleSaveEditAppt = async () => {
-    if (editFormData.timeSlots.length === 0) return alert("請至少選擇一個時段！");
-    
-    const sortedSlots = [...editFormData.timeSlots].sort();
-    const exactDisplayTime = formatTimeSlots(sortedSlots);
-    const gasTime = `${sortedSlots[0].split('-')[0]}-${sortedSlots[sortedSlots.length - 1].split('-')[1]}`;
-    
-    const finalAdvisorName = teamMembers.find(m => m.id === editFormData.advisorId)?.name || '未知';
-    const oldDateStr = `${editingAppt.date} ${editingAppt.exactDisplayTime}`;
-    const newDateStr = `${editFormData.date} ${exactDisplayTime}`;
-    
-    let updatedNeeds = editingAppt.needs || "";
-    
-    // 如果日期/時間或顧問有變動，自動加註到備註欄
-    if (oldDateStr !== newDateStr || editingAppt.advisorId !== editFormData.advisorId) {
-       const changeLog = `\n⚠️ [系統紀錄: 由 ${oldDateStr} 改期至 ${newDateStr}]`;
-       updatedNeeds += changeLog;
-    }
-
-    try {
-      await setDoc(doc(db, "appointments", editingAppt.id), {
-        date: editFormData.date,
-        timeSlots: editFormData.timeSlots,
-        exactDisplayTime,
-        gasTime,
-        advisorId: editFormData.advisorId,
-        advisorName: finalAdvisorName,
-        needs: updatedNeeds.trim()
-      }, { merge: true });
-      
-      alert(`✅ 改期成功！\n已更新為：${newDateStr}`);
-      setEditingAppt(null);
-    } catch (error) {
-      alert("改期失敗：" + error.message);
-    }
-  };
-  // ==========================================
 
 // 品牌聯絡資訊組件
 const BrandFooter = () => (
@@ -283,6 +208,83 @@ const getDayLabel = (dateStr) => {
 // 🚀 核心 App 元件開始
 // ==============================================
 export default function App() {
+
+  // ==========================================
+  // 👇 新增：改期系統專用狀態與邏輯 👇
+  // ==========================================
+  const [editingAppt, setEditingAppt] = useState(null);
+  const [editFormData, setEditFormData] = useState({ date: '', timeSlots: [], advisorId: '' });
+
+  // 計算改期時可用的空檔 (要排除別人約走的，但保留自己原本佔用的時段)
+  const editAvailableSlots = useMemo(() => {
+    if (!editFormData.date || !editFormData.advisorId) return [];
+    const dailySchedule = schedules.find(s => s.advisorId === editFormData.advisorId && s.date === editFormData.date);
+    if (!dailySchedule || !dailySchedule.slots) return [];
+    
+    const bookedSlots = appointments.filter(a => 
+      a.advisorId === editFormData.advisorId && 
+      a.date === editFormData.date && 
+      a.status !== '已取消' &&
+      a.id !== editingAppt?.id // ⭐️ 排除這筆訂單自己，避免自己卡自己
+    ).flatMap(a => a.timeSlots || []);
+    
+    return dailySchedule.slots.filter(slot => !bookedSlots.includes(slot)).sort();
+  }, [editFormData.date, editFormData.advisorId, schedules, appointments, editingAppt]);
+
+  const handleOpenEditModal = (appt) => {
+    setEditingAppt(appt);
+    setEditFormData({
+      date: appt.date,
+      timeSlots: appt.timeSlots || [],
+      advisorId: appt.advisorId
+    });
+  };
+
+  const handleToggleEditSlot = (slot) => {
+    setEditFormData(prev => ({
+      ...prev,
+      timeSlots: prev.timeSlots.includes(slot) ? prev.timeSlots.filter(s => s !== slot) : [...prev.timeSlots, slot]
+    }));
+  };
+
+  const handleSaveEditAppt = async () => {
+    if (editFormData.timeSlots.length === 0) return alert("請至少選擇一個時段！");
+    
+    const sortedSlots = [...editFormData.timeSlots].sort();
+    const exactDisplayTime = formatTimeSlots(sortedSlots);
+    const gasTime = `${sortedSlots[0].split('-')[0]}-${sortedSlots[sortedSlots.length - 1].split('-')[1]}`;
+    
+    const finalAdvisorName = teamMembers.find(m => m.id === editFormData.advisorId)?.name || '未知';
+    const oldDateStr = `${editingAppt.date} ${editingAppt.exactDisplayTime}`;
+    const newDateStr = `${editFormData.date} ${exactDisplayTime}`;
+    
+    let updatedNeeds = editingAppt.needs || "";
+    
+    // 如果日期/時間或顧問有變動，自動加註到備註欄
+    if (oldDateStr !== newDateStr || editingAppt.advisorId !== editFormData.advisorId) {
+       const changeLog = `\n⚠️ [系統紀錄: 由 ${oldDateStr} 改期至 ${newDateStr}]`;
+       updatedNeeds += changeLog;
+    }
+
+    try {
+      await setDoc(doc(db, "appointments", editingAppt.id), {
+        date: editFormData.date,
+        timeSlots: editFormData.timeSlots,
+        exactDisplayTime,
+        gasTime,
+        advisorId: editFormData.advisorId,
+        advisorName: finalAdvisorName,
+        needs: updatedNeeds.trim()
+      }, { merge: true });
+      
+      alert(`✅ 改期成功！\n已更新為：${newDateStr}`);
+      setEditingAppt(null);
+    } catch (error) {
+      alert("改期失敗：" + error.message);
+    }
+  };
+  // ==========================================
+  
   const [appointments, setAppointments] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [customerMemos, setCustomerMemos] = useState({});
@@ -2258,71 +2260,6 @@ export default function App() {
                   </select>
                 )}
               </div>
-              {/* ============================================== */}
-      {/* 👇 新增：修改預約日期/時間的彈出視窗 👇           */}
-      {/* ============================================== */}
-      {editingAppt && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
-          <div className="bg-[#1E293B] text-white p-6 rounded-2xl w-full max-w-md shadow-2xl relative animate-in zoom-in-95">
-            <button onClick={() => setEditingAppt(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
-            <h2 className="text-xl font-bold mb-4 border-b border-gray-600 pb-4 flex items-center gap-2 text-amber-400">
-              <Edit2 size={20} /> 更改客戶預約時間
-            </h2>
-
-            {/* 原始資訊提示 */}
-            <div className="bg-gray-800 p-3 rounded-lg border border-gray-600 mb-5">
-              <p className="text-sm text-gray-400 mb-1">正在為 <span className="text-white font-bold">{editingAppt.name}</span> 修改時間</p>
-              <p className="text-sm font-bold text-rose-400 line-through">
-                原預約：{editingAppt.date} {editingAppt.exactDisplayTime} ({editingAppt.advisorName})
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm mb-1.5 text-slate-300">選擇新日期</label>
-                  <input 
-                    type="date" 
-                    min={new Date().toISOString().split('T')[0]} 
-                    className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-amber-400 border border-gray-600" 
-                    value={editFormData.date} 
-                    onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value, timeSlots: [] })} 
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm mb-1.5 text-slate-300">負責顧問</label>
-                  <select 
-                    className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-amber-400 border border-gray-600" 
-                    value={editFormData.advisorId} 
-                    onChange={(e) => setEditFormData({ ...editFormData, advisorId: e.target.value, timeSlots: [] })}
-                  >
-                    {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm mb-1.5 text-slate-300">重新勾選時段 (可複選)</label>
-                {editAvailableSlots.length === 0 ? (
-                  <div className="text-[13px] text-gray-400 bg-gray-800 p-3 rounded-lg text-center border-dashed border border-gray-600">
-                    該日無可預約時段，或顧問未排班
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
-                    {editAvailableSlots.map(slot => (
-                      <button 
-                        key={slot} 
-                        type="button" 
-                        onClick={() => handleToggleEditSlot(slot)} 
-                        className={`py-2 text-xs rounded-lg border font-bold transition-colors ${editFormData.timeSlots.includes(slot) ? 'bg-amber-500 text-white border-amber-500 shadow-md' : 'bg-gray-700 text-slate-300 border-gray-600 hover:bg-gray-600'}`}
-                      >
-                        {slot}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
 
             <div className="mt-8 flex justify-end space-x-3 border-t border-gray-600 pt-4">
               <button className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors text-sm font-bold" onClick={() => setEditingAppt(null)}>取消</button>
@@ -2419,6 +2356,70 @@ export default function App() {
           </div>
         </div>
       )}
+{/* 👇 新增：修改預約日期/時間的彈出視窗 👇           */}
+      {/* ============================================== */}
+      {editingAppt && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
+          <div className="bg-[#1E293B] text-white p-6 rounded-2xl w-full max-w-md shadow-2xl relative animate-in zoom-in-95">
+            <button onClick={() => setEditingAppt(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
+            <h2 className="text-xl font-bold mb-4 border-b border-gray-600 pb-4 flex items-center gap-2 text-amber-400">
+              <Edit2 size={20} /> 更改客戶預約時間
+            </h2>
+
+            {/* 原始資訊提示 */}
+            <div className="bg-gray-800 p-3 rounded-lg border border-gray-600 mb-5">
+              <p className="text-sm text-gray-400 mb-1">正在為 <span className="text-white font-bold">{editingAppt.name}</span> 修改時間</p>
+              <p className="text-sm font-bold text-rose-400 line-through">
+                原預約：{editingAppt.date} {editingAppt.exactDisplayTime} ({editingAppt.advisorName})
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm mb-1.5 text-slate-300">選擇新日期</label>
+                  <input 
+                    type="date" 
+                    min={new Date().toISOString().split('T')[0]} 
+                    className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-amber-400 border border-gray-600" 
+                    value={editFormData.date} 
+                    onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value, timeSlots: [] })} 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1.5 text-slate-300">負責顧問</label>
+                  <select 
+                    className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-amber-400 border border-gray-600" 
+                    value={editFormData.advisorId} 
+                    onChange={(e) => setEditFormData({ ...editFormData, advisorId: e.target.value, timeSlots: [] })}
+                  >
+                    {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1.5 text-slate-300">重新勾選時段 (可複選)</label>
+                {editAvailableSlots.length === 0 ? (
+                  <div className="text-[13px] text-gray-400 bg-gray-800 p-3 rounded-lg text-center border-dashed border border-gray-600">
+                    該日無可預約時段，或顧問未排班
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
+                    {editAvailableSlots.map(slot => (
+                      <button 
+                        key={slot} 
+                        type="button" 
+                        onClick={() => handleToggleEditSlot(slot)} 
+                        className={`py-2 text-xs rounded-lg border font-bold transition-colors ${editFormData.timeSlots.includes(slot) ? 'bg-amber-500 text-white border-amber-500 shadow-md' : 'bg-gray-700 text-slate-300 border-gray-600 hover:bg-gray-600'}`}
+                      >
+                        {slot}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
     </div>
   );
 }
