@@ -1292,6 +1292,7 @@ export default function App() {
               </div>
             )}
           </div>
+          ) : (
           <div className="bg-white/95 rounded-3xl shadow-xl flex flex-col md:flex-row min-h-[750px] overflow-hidden">
             
             {/* ================= 左側 Sidebar 側邊欄 ================= */}
