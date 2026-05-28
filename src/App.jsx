@@ -1085,7 +1085,7 @@ export default function App() {
         💰 收銀機
       </button>
 
-      {/* 👇 新增的病歷系統浮動按鈕 👇 */}
+{/* 👇 新增的病歷系統浮動按鈕 👇 */}
       {currentUser && (
         <a 
           href="https://您的病歷系統網址.vercel.app" 
@@ -1098,9 +1098,6 @@ export default function App() {
         </a>
       )}
 
-      {!currentUser && (
-        <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 z-50 bg-[#06C755] text-white p-4 rounded-full shadow-[0_10px_25px_rgba(6,199,85,0.4)] hover:scale-110 transition-all flex items-center justify-center gap-2 group">
-          
       {!currentUser && (
         <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 z-50 bg-[#06C755] text-white p-4 rounded-full shadow-[0_10px_25px_rgba(6,199,85,0.4)] hover:scale-110 transition-all flex items-center justify-center gap-2 group">
           <MessageCircle size={28} />
