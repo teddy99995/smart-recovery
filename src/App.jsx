@@ -1085,6 +1085,22 @@ export default function App() {
         💰 收銀機
       </button>
 
+      {/* 👇 新增的病歷系統浮動按鈕 👇 */}
+      {currentUser && (
+        <a 
+          href="https://您的病歷系統網址.vercel.app" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="fixed top-4 left-[140px] z-50 bg-[#151b2b] text-[#e2bba9] hover:bg-[#202942] border border-[#e2bba9]/30 font-bold py-2.5 px-4 rounded-full shadow-md flex items-center gap-2 transition-all active:scale-95"
+        >
+          <Activity size={18} /> 
+          開啟電子病歷
+        </a>
+      )}
+
+      {!currentUser && (
+        <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 z-50 bg-[#06C755] text-white p-4 rounded-full shadow-[0_10px_25px_rgba(6,199,85,0.4)] hover:scale-110 transition-all flex items-center justify-center gap-2 group">
+          
       {!currentUser && (
         <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 z-50 bg-[#06C755] text-white p-4 rounded-full shadow-[0_10px_25px_rgba(6,199,85,0.4)] hover:scale-110 transition-all flex items-center justify-center gap-2 group">
           <MessageCircle size={28} />
@@ -1399,6 +1415,15 @@ export default function App() {
                     <button onClick={() => setAdminTab('blacklist')} className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors ${adminTab === 'blacklist' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-300 hover:bg-white/5 hover:text-rose-400'}`}><ShieldAlert size={18} /> 黑名單管理</button>
                   </>
                 )}
+
+                <a 
+                  href="https://您的病歷系統網址.vercel.app" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="w-full text-left px-4 py-3 mt-2 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors bg-[#151b2b] text-[#e2bba9] hover:bg-[#202942] border border-[#e2bba9]/30 shadow-sm"
+                >
+                  <Activity size={18} /> 開啟電子病歷庫
+                </a>
               </div>
 
               {/* 底部操作區 */}
