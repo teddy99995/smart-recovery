@@ -1124,9 +1124,8 @@ export default function App() {
           <p className="text-xs md:text-sm tracking-[0.4em] font-semibold text-[#e3b5a1] uppercase">Smart Recovery</p>
         </header>
 
-        {!currentUser ? (
+{!currentUser ? (
           <div className="max-w-2xl mx-auto space-y-6">
-            {/* 切換按鈕 */}
             <div className="flex bg-[#12182c] p-1.5 rounded-2xl max-w-sm mx-auto mb-8 border border-white/10">
               <button onClick={() => setAppMode('booking')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${appMode === 'booking' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-white/50 hover:text-white/80'}`}>線上預約</button>
               <button onClick={() => setAppMode('tracking')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${appMode === 'tracking' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-white/50 hover:text-white/80'}`}>我的預約查詢</button>
@@ -1135,7 +1134,6 @@ export default function App() {
             {appMode === 'booking' && (
               <>
                 {successData ? (
-                  /* --- 預約成功畫面 (乾淨版) --- */
                   <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 text-center">
                     <CheckCircle size={56} className="text-[#9aa486] mx-auto mb-4" />
                     <h2 className="text-2xl font-bold text-[#192039] mb-4">預約申請已送出！</h2>
@@ -1158,13 +1156,9 @@ export default function App() {
                     <button onClick={() => setSuccessData(null)} className="text-base text-slate-400 underline mt-2">返回首頁</button>
                   </div>
                 ) : (
-                  /* --- 填寫預約單畫面 (把所有東西都搬到這裡) --- */
                   <div className="space-y-6">
-                    
-                    {/* 小叮嚀放在這裡 */}
                     <BookingDisclaimer />
-
-                    {/* 身體狀況評估搬到這裡 */}
+                    
                     <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5">
                       <div>
                         <label className="block text-base font-bold text-slate-700 mb-2 flex items-center gap-2">
@@ -1189,7 +1183,6 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* AI 顧問搬到這裡 */}
                     <div className="bg-gradient-to-br from-indigo-50 to-white rounded-3xl shadow-xl p-6 sm:p-8 border border-indigo-100">
                       <h2 className="text-lg md:text-xl font-bold mb-3 flex items-center gap-2 text-indigo-900"><MessageSquare className="text-indigo-600" /> AI 智慧恢復顧問</h2>
                       <p className="text-base text-slate-500 mb-4">不知道該預約什麼項目嗎？告訴我們您哪裡不舒服吧！</p>
@@ -1207,88 +1200,60 @@ export default function App() {
                       )}
                     </div>
 
-                {successData ? (
-                  <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 text-center">
-                    <CheckCircle size={56} className="text-[#9aa486] mx-auto mb-4" />
-                    <h2 className="text-2xl font-bold text-[#192039] mb-4">預約申請已送出！</h2>
-                    <p className="text-slate-500 text-base mb-6">請透過下方按鈕加入官方 LINE，我們將由專人為您確認保留。</p>
-                    <a href={generateGoogleCalendarLink(successData?.date, successData?.time, successData?.service, successData?.advisor)} target="_blank" rel="noopener noreferrer" className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 mb-3 transition-colors">
-                      <Calendar size={20} /> 將行程加入 Google 行事曆
-                    </a>
-                    <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 mb-6 text-left">
-                      <h3 className="text-sm font-bold text-slate-400 tracking-widest mb-4 border-b border-slate-200 pb-3">BOOKING DETAILS</h3>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">預約姓名</span><span className="text-slate-800 font-bold text-base">{successData?.name || '無'}</span></div>
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">客戶屬性</span><span className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md text-base font-bold">{successData?.customerType || '無'}</span></div>
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">預約項目</span><span className="text-slate-800 font-bold text-base text-right max-w-[160px] truncate">{successData?.service || '無'}</span></div>
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">指定顧問</span><span className="text-slate-800 font-bold text-base">{successData?.advisor || '無'}</span></div>
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">預約日期</span><span className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-md text-base font-bold">{successData?.date || '無'}</span></div>
-                        <div className="flex justify-between items-center pb-1"><span className="text-slate-500 text-base">預約時間</span><span className="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-md text-base font-bold">{successData?.time || '無'}</span></div>
-              </div>
-            </div>
-
-            {/* 👇👇👇 將小叮嚀加在這裡 👇👇👇 */}
-            <BookingDisclaimer />
-
-            <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="w-full bg-[#06C755] text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 mb-4"><MessageCircle size={24} /> 點擊加入 LINE 官方帳號確認</a>
-            <button onClick={() => setSuccessData(null)} className="text-base text-slate-400 underline mt-2">返回首頁</button>
-          </div>
-                ) : (
-                  <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 relative">
-                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#9aa486] to-[#e3b5a1]"></div>
-                    <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-[#192039] border-b pb-4"><PlusCircle size={24} className="text-[#9aa486]" /> 線上預約專屬時段</h2>
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <div>
-                          <label className="block text-base font-bold text-slate-600 mb-2">姓名 *</label>
-                          <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required />
-                        </div>
-                        <div>
-                          <label className="block text-base font-bold text-slate-600 mb-2">聯絡電話 / LINE ID *</label>
-                          {/* 為了支援 Line ID 的英文輸入，改為 text 而非 tel */}
-                          <input type="text" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="09XX... 或 LINE ID" className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required />
-                        </div>
-                      </div>
-                      <div className="bg-slate-50 p-5 rounded-2xl border">
-                        <label className="block text-base font-bold text-slate-700 mb-3">初次來店？ *</label>
-                        <div className="flex gap-3">
-                          <button type="button" onClick={() => setFormData({ ...formData, isFirstTime: 'yes' })} className={`flex-1 py-4 rounded-xl border-2 font-bold text-base ${formData.isFirstTime === 'yes' ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white'}`}>是，初次預約</button>
-                          <button type="button" onClick={() => setFormData({ ...formData, isFirstTime: 'no' })} className={`flex-1 py-4 rounded-xl border-2 font-bold text-base ${formData.isFirstTime === 'no' ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white'}`}>否，我來過</button>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <div>
-                          <label className="block text-base font-bold text-slate-600 mb-2">預約項目 *</label>
-                          <select name="serviceType" value={formData.serviceType} onChange={handleInputChange} className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required>
-                            <option value="" disabled>請選擇服務</option>{serviceTypes.map(type => <option key={type} value={type}>{type}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-base font-bold text-slate-600 mb-2">指定顧問 *</label>
-                          <select name="advisorId" value={formData.advisorId} onChange={handleInputChange} className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required>
-                            <option value="" disabled>請選擇顧問</option>
-                            <option value="any" className="font-bold text-[#9aa486]">✨ 不指定顧問 (安排最快時段)</option>
-                            {teamMembers.filter(m => activeAdvisors.includes(m.id)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                          </select>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-base font-bold text-slate-600 mb-2">選擇日期 *</label>
-                        <input type="date" name="date" value={formData.date} onChange={handleInputChange} min={new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required />
-                      </div>
-                      <div>
-                        <label className="block text-base font-bold text-slate-600 mb-3">選擇時段 (可複選) *</label>
-                        {!formData.date || !formData.advisorId ? <div className="text-base text-slate-400 bg-slate-50 p-6 rounded-2xl text-center border-dashed border">請先選擇上方「指定顧問」與「日期」</div> : clientAvailableSlots.length === 0 ? <div className="text-base text-rose-500 bg-rose-50 p-6 rounded-2xl text-center font-bold">該日無可預約時段</div> : (
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {clientAvailableSlots.map(slot => (
-                              <button key={slot} type="button" onClick={() => handleToggleClientSlot(slot)} className={`py-3 text-base rounded-xl border font-bold ${formData.timeSlots.includes(slot) ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white text-slate-600'}`}>{slot}</button>
-                            ))}
+                    <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 relative">
+                      <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#9aa486] to-[#e3b5a1]"></div>
+                      <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-[#192039] border-b pb-4"><PlusCircle size={24} className="text-[#9aa486]" /> 線上預約專屬時段</h2>
+                      <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                          <div>
+                            <label className="block text-base font-bold text-slate-600 mb-2">姓名 *</label>
+                            <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required />
                           </div>
-                        )}
-                      </div>
-                      {conflictError && <div className="p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-base font-bold flex items-center gap-2"><AlertTriangle size={20} className="shrink-0" /> {conflictError}</div>}
-                      <button type="submit" disabled={isSubmitting} className="w-full bg-[#192039] text-[#e3b5a1] font-bold py-4 rounded-2xl shadow-lg mt-6 text-lg disabled:opacity-70">確認預約時段</button>
-                    </form>
+                          <div>
+                            <label className="block text-base font-bold text-slate-600 mb-2">聯絡電話 / LINE ID *</label>
+                            <input type="text" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="09XX... 或 LINE ID" className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required />
+                          </div>
+                        </div>
+                        <div className="bg-slate-50 p-5 rounded-2xl border">
+                          <label className="block text-base font-bold text-slate-700 mb-3">初次來店？ *</label>
+                          <div className="flex gap-3">
+                            <button type="button" onClick={() => setFormData({ ...formData, isFirstTime: 'yes' })} className={`flex-1 py-4 rounded-xl border-2 font-bold text-base ${formData.isFirstTime === 'yes' ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white'}`}>是，初次預約</button>
+                            <button type="button" onClick={() => setFormData({ ...formData, isFirstTime: 'no' })} className={`flex-1 py-4 rounded-xl border-2 font-bold text-base ${formData.isFirstTime === 'no' ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white'}`}>否，我來過</button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                          <div>
+                            <label className="block text-base font-bold text-slate-600 mb-2">預約項目 *</label>
+                            <select name="serviceType" value={formData.serviceType} onChange={handleInputChange} className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required>
+                              <option value="" disabled>請選擇服務</option>{serviceTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-base font-bold text-slate-600 mb-2">指定顧問 *</label>
+                            <select name="advisorId" value={formData.advisorId} onChange={handleInputChange} className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required>
+                              <option value="" disabled>請選擇顧問</option>
+                              <option value="any" className="font-bold text-[#9aa486]">✨ 不指定顧問 (安排最快時段)</option>
+                              {teamMembers.filter(m => activeAdvisors.includes(m.id)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-base font-bold text-slate-600 mb-2">選擇日期 *</label>
+                          <input type="date" name="date" value={formData.date} onChange={handleInputChange} min={new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 border rounded-2xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" required />
+                        </div>
+                        <div>
+                          <label className="block text-base font-bold text-slate-600 mb-3">選擇時段 (可複選) *</label>
+                          {!formData.date || !formData.advisorId ? <div className="text-base text-slate-400 bg-slate-50 p-6 rounded-2xl text-center border-dashed border">請先選擇上方「指定顧問」與「日期」</div> : clientAvailableSlots.length === 0 ? <div className="text-base text-rose-500 bg-rose-50 p-6 rounded-2xl text-center font-bold">該日無可預約時段</div> : (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              {clientAvailableSlots.map(slot => (
+                                <button key={slot} type="button" onClick={() => handleToggleClientSlot(slot)} className={`py-3 text-base rounded-xl border font-bold ${formData.timeSlots.includes(slot) ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white text-slate-600'}`}>{slot}</button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {conflictError && <div className="p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-base font-bold flex items-center gap-2"><AlertTriangle size={20} className="shrink-0" /> {conflictError}</div>}
+                        <button type="submit" disabled={isSubmitting} className="w-full bg-[#192039] text-[#e3b5a1] font-bold py-4 rounded-2xl shadow-lg mt-6 text-lg disabled:opacity-70">確認預約時段</button>
+                      </form>
                     </div>
                   </div>
                 )}
@@ -1327,7 +1292,6 @@ export default function App() {
               </div>
             )}
           </div>
-          ) : (
           <div className="bg-white/95 rounded-3xl shadow-xl flex flex-col md:flex-row min-h-[750px] overflow-hidden">
             
             {/* ================= 左側 Sidebar 側邊欄 ================= */}
