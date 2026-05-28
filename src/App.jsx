@@ -52,32 +52,49 @@ const BrandFooter = () => (
 );
 
 // 免責聲明與預約須知組件 (長輩友善大字體)
-const BookingDisclaimer = () => (
-  <div className="bg-[#f4faec] border border-[#9aa486] rounded-2xl p-5 sm:p-6 mb-6 shadow-sm text-slate-700 text-left">
-    <h3 className="text-xl font-bold text-[#192039] mb-4 flex items-center gap-2">
-      🌿 智理 Smart Recovery 專屬預約小叮嚀
-    </h3>
-    <p className="font-bold mb-4 text-base sm:text-lg">【歡迎來到 ✨智理運動恢復 Smart Recovery✨ 】</p>
-    <p className="text-base sm:text-lg leading-relaxed mb-6">
-      為了給您最完整、專屬的陪伴與動作優化體驗，我們採全預約制。以下為您準備了預約小叮嚀，希望能保障您的最高服務品質：
-    </p>
-    <div className="space-y-5 text-base sm:text-lg leading-relaxed">
-      <div className="bg-white/60 p-4 rounded-xl">
-        <h4 className="font-bold text-[#192039] mb-1">1. 關於時間與遲到（把最棒的狀態留給自己）</h4>
-        <p>您的專屬時段是我們為您精心預留的。如果您不小心遲到了，為了不壓縮到下一位朋友的權益，我們的服務還是會在原定時間結束喔（費用將維持原預約時段計算）。建議您提早 5-10 分鐘抵達，先喝口水、喘口氣，讓身體在最放鬆的狀態下開始！</p>
+const BookingDisclaimer = () => {
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <div className="bg-[#f4faec] border border-[#9aa486] rounded-2xl p-5 sm:p-6 mb-6 shadow-sm text-slate-700 text-left transition-all">
+      <div 
+        className="flex justify-between items-center cursor-pointer select-none"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <h3 className="text-xl font-bold text-[#192039] flex items-center gap-2 m-0">
+          🌿 智理 Smart Recovery 專屬預約小叮嚀
+        </h3>
+        <button className="text-[#9aa486] font-bold bg-white px-3 py-1.5 rounded-lg border border-[#9aa486]/30 hover:bg-[#9aa486] hover:text-white transition-colors">
+          {isOpen ? '▲ 收合' : '▼ 展開詳情'}
+        </button>
       </div>
-      <div className="bg-white/60 p-4 rounded-xl">
-        <h4 className="font-bold text-[#192039] mb-1">2. 關於行程變更（謝謝您的體諒）</h4>
-        <p>我們完全理解生活中總有突發狀況！若您的行程有異動，麻煩您最晚於預約時間的 <span className="text-rose-600 font-bold">24 小時前</span> 透過系統或官方 LINE 告訴我們，讓我們能把這個時段安排給其他同樣需要幫助的朋友。</p>
-        <p className="mt-2 text-sm sm:text-base text-slate-500 font-bold">⚠️ 提醒您，若有「無故未到」或「24 小時內臨時取消」累計達 2 次的狀況，未來可能就只能麻煩您當天碰碰運氣、預約當日的空檔了，非常感謝您的體諒與配合！</p>
-      </div>
-      <div className="bg-white/60 p-4 rounded-xl">
-        <h4 className="font-bold text-[#192039] mb-1">3. 我們的專業承諾</h4>
-        <p>智理專注於「動作評估、健康促進與高階運動恢復」，非屬傳統醫療診斷與治療行為。若在評估過程中，發現您的身體需要進一步的醫療協助，我們也會為您提供最專業的轉介建議，陪您一起找到最適合的健康方案。</p>
-      </div>
+      
+      {isOpen && (
+        <div className="mt-5 animate-in fade-in slide-in-from-top-2">
+          <p className="font-bold mb-4 text-base sm:text-lg">【歡迎來到 ✨智理運動恢復 Smart Recovery✨ 】</p>
+          <p className="text-base sm:text-lg leading-relaxed mb-6">
+            為了給您最完整、專屬的陪伴與動作優化體驗，我們採全預約制。以下為您準備了預約小叮嚀，希望能保障您的最高服務品質：
+          </p>
+          <div className="space-y-5 text-base sm:text-lg leading-relaxed">
+            <div className="bg-white/60 p-4 rounded-xl">
+              <h4 className="font-bold text-[#192039] mb-1">1. 關於時間與遲到（把最棒的狀態留給自己）</h4>
+              <p>您的專屬時段是我們為您精心預留的。如果您不小心遲到了，為了不壓縮到下一位朋友的權益，我們的服務還是會在原定時間結束喔（費用將維持原預約時段計算）。建議您提早 5-10 分鐘抵達，先喝口水、喘口氣，讓身體在最放鬆的狀態下開始！</p>
+            </div>
+            <div className="bg-white/60 p-4 rounded-xl">
+              <h4 className="font-bold text-[#192039] mb-1">2. 關於行程變更（謝謝您的體諒）</h4>
+              <p>我們完全理解生活中總有突發狀況！若您的行程有異動，麻煩您最晚於預約時間的 <span className="text-rose-600 font-bold">24 小時前</span> 透過系統或官方 LINE 告訴我們，讓我們能把這個時段安排給其他同樣需要幫助的朋友。</p>
+              <p className="mt-2 text-sm sm:text-base text-slate-500 font-bold">⚠️ 提醒您，若有「無故未到」或「24 小時內臨時取消」累計達 2 次的狀況，未來可能就只能麻煩您當天碰碰運氣、預約當日的空檔了，非常感謝您的體諒與配合！</p>
+            </div>
+            <div className="bg-white/60 p-4 rounded-xl">
+              <h4 className="font-bold text-[#192039] mb-1">3. 我們的專業承諾</h4>
+              <p>智理專注於「動作評估、健康促進與高階運動恢復」，非屬傳統醫療診斷與治療行為。若在評估過程中，發現您的身體需要進一步的醫療協助，我們也會為您提供最專業的轉介建議，陪您一起找到最適合的健康方案。</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
+};
 
 // 老闆營收分析組件
 export const getBossAnalytics = (records) => {
@@ -1109,53 +1126,86 @@ export default function App() {
 
         {!currentUser ? (
           <div className="max-w-2xl mx-auto space-y-6">
+            {/* 切換按鈕 */}
             <div className="flex bg-[#12182c] p-1.5 rounded-2xl max-w-sm mx-auto mb-8 border border-white/10">
               <button onClick={() => setAppMode('booking')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${appMode === 'booking' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-white/50 hover:text-white/80'}`}>線上預約</button>
               <button onClick={() => setAppMode('tracking')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${appMode === 'tracking' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-white/50 hover:text-white/80'}`}>我的預約查詢</button>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5">
-              <div>
-                <label className="block text-base font-bold text-slate-700 mb-2 flex items-center gap-2">
-                  <span>目前的疼痛/緊繃程度 (1-10分) :</span><span className="text-[#9aa486] font-extrabold text-lg">{formData.painLevel} 分</span>
-                </label>
-                <input type="range" min="1" max="10" value={formData.painLevel} onChange={(e) => setFormData({ ...formData, painLevel: parseInt(e.target.value) })} className="w-full accent-[#9aa486]" />
-                <div className="flex justify-between text-sm text-slate-400 font-bold px-1 mt-1"><span>1 (輕微)</span><span>10 (極度不適)</span></div>
-              </div>
-              <div>
-                <label className="block text-base font-bold text-slate-700 mb-2">主要不適部位 (可複選)</label>
-                <div className="flex flex-wrap gap-2">
-                  {BODY_PARTS.map(part => (
-                    <button key={part} type="button" onClick={() => toggleBodyPart(part)} className={`px-4 py-2 rounded-lg text-base font-bold border transition-colors ${formData.bodyParts.includes(part) ? 'bg-[#192039] text-[#e3b5a1] border-[#192039]' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                      {part}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-base font-bold text-slate-700 mb-1.5">其他文字備註</label>
-                <textarea name="needs" value={formData.needs} onChange={handleInputChange} rows="2" placeholder="例如：右膝蓋之前有開過刀..." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" />
-              </div>
-            </div>
-
             {appMode === 'booking' && (
               <>
-                <div className="bg-gradient-to-br from-indigo-50 to-white rounded-3xl shadow-xl p-6 sm:p-8 border border-indigo-100">
-                  <h2 className="text-lg md:text-xl font-bold mb-3 flex items-center gap-2 text-indigo-900"><MessageSquare className="text-indigo-600" /> AI 智慧恢復顧問</h2>
-                  <p className="text-base text-slate-500 mb-4">不知道該預約什麼項目嗎？告訴我們您哪裡不舒服吧！</p>
-                  <textarea value={aiInput} onChange={e => setAiInput(e.target.value)} rows="2" className="w-full p-4 bg-white border border-indigo-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-400 text-base resize-none" placeholder="例如：最近跑步完膝蓋外側緊緊的，或是肩膀一直很僵硬..." />
-                  <button onClick={handleAIGetRecommendation} disabled={loadingAi || !aiInput.trim()} className="mt-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl text-base transition-all flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 shadow-sm">
-                    {loadingAi ? <RefreshCw className="animate-spin" size={18} /> : <Sparkles size={18} />} 請 AI 給予專業建議
-                  </button>
-                  {aiRec && (
-                    <div className="mt-5 p-4 bg-indigo-100/50 border border-indigo-200 rounded-xl animate-in fade-in">
-                      <p className="text-base text-indigo-900 leading-relaxed font-medium whitespace-pre-line">{aiRec}</p>
-                      <button type="button" onClick={applyAiService} className="mt-4 w-full sm:w-auto text-base bg-white border border-indigo-300 text-indigo-700 font-bold px-4 py-2 rounded-lg hover:bg-indigo-50 transition-all flex items-center justify-center gap-1.5 shadow-sm">
-                        <CheckCircle size={16} /> 👉 聽從建議，自動套用此服務
-                      </button>
+                {successData ? (
+                  /* --- 預約成功畫面 (乾淨版) --- */
+                  <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 text-center">
+                    <CheckCircle size={56} className="text-[#9aa486] mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold text-[#192039] mb-4">預約申請已送出！</h2>
+                    <p className="text-slate-500 text-base mb-6">請透過下方按鈕加入官方 LINE，我們將由專人為您確認保留。</p>
+                    <a href={generateGoogleCalendarLink(successData?.date, successData?.time, successData?.service, successData?.advisor)} target="_blank" rel="noopener noreferrer" className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 mb-3 transition-colors">
+                      <Calendar size={20} /> 將行程加入 Google 行事曆
+                    </a>
+                    <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 mb-6 text-left">
+                      <h3 className="text-sm font-bold text-slate-400 tracking-widest mb-4 border-b border-slate-200 pb-3">BOOKING DETAILS</h3>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">預約姓名</span><span className="text-slate-800 font-bold text-base">{successData?.name || '無'}</span></div>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">客戶屬性</span><span className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md text-base font-bold">{successData?.customerType || '無'}</span></div>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">預約項目</span><span className="text-slate-800 font-bold text-base text-right max-w-[160px] truncate">{successData?.service || '無'}</span></div>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">指定顧問</span><span className="text-slate-800 font-bold text-base">{successData?.advisor || '無'}</span></div>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3"><span className="text-slate-500 text-base">預約日期</span><span className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-md text-base font-bold">{successData?.date || '無'}</span></div>
+                        <div className="flex justify-between items-center pb-1"><span className="text-slate-500 text-base">預約時間</span><span className="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-md text-base font-bold">{successData?.time || '無'}</span></div>
+                      </div>
                     </div>
-                  )}
-                </div>
+                    <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="w-full bg-[#06C755] text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 mb-4"><MessageCircle size={24} /> 點擊加入 LINE 官方帳號確認</a>
+                    <button onClick={() => setSuccessData(null)} className="text-base text-slate-400 underline mt-2">返回首頁</button>
+                  </div>
+                ) : (
+                  /* --- 填寫預約單畫面 (把所有東西都搬到這裡) --- */
+                  <div className="space-y-6">
+                    
+                    {/* 小叮嚀放在這裡 */}
+                    <BookingDisclaimer />
+
+                    {/* 身體狀況評估搬到這裡 */}
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+                      <div>
+                        <label className="block text-base font-bold text-slate-700 mb-2 flex items-center gap-2">
+                          <span>目前的疼痛/緊繃程度 (1-10分) :</span><span className="text-[#9aa486] font-extrabold text-lg">{formData.painLevel} 分</span>
+                        </label>
+                        <input type="range" min="1" max="10" value={formData.painLevel} onChange={(e) => setFormData({ ...formData, painLevel: parseInt(e.target.value) })} className="w-full accent-[#9aa486]" />
+                        <div className="flex justify-between text-sm text-slate-400 font-bold px-1 mt-1"><span>1 (輕微)</span><span>10 (極度不適)</span></div>
+                      </div>
+                      <div>
+                        <label className="block text-base font-bold text-slate-700 mb-2">主要不適部位 (可複選)</label>
+                        <div className="flex flex-wrap gap-2">
+                          {BODY_PARTS.map(part => (
+                            <button key={part} type="button" onClick={() => toggleBodyPart(part)} className={`px-4 py-2 rounded-lg text-base font-bold border transition-colors ${formData.bodyParts.includes(part) ? 'bg-[#192039] text-[#e3b5a1] border-[#192039]' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                              {part}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-base font-bold text-slate-700 mb-1.5">其他文字備註</label>
+                        <textarea name="needs" value={formData.needs} onChange={handleInputChange} rows="2" placeholder="例如：右膝蓋之前有開過刀..." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-base outline-none focus:ring-2 focus:ring-[#e3b5a1]" />
+                      </div>
+                    </div>
+
+                    {/* AI 顧問搬到這裡 */}
+                    <div className="bg-gradient-to-br from-indigo-50 to-white rounded-3xl shadow-xl p-6 sm:p-8 border border-indigo-100">
+                      <h2 className="text-lg md:text-xl font-bold mb-3 flex items-center gap-2 text-indigo-900"><MessageSquare className="text-indigo-600" /> AI 智慧恢復顧問</h2>
+                      <p className="text-base text-slate-500 mb-4">不知道該預約什麼項目嗎？告訴我們您哪裡不舒服吧！</p>
+                      <textarea value={aiInput} onChange={e => setAiInput(e.target.value)} rows="2" className="w-full p-4 bg-white border border-indigo-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-400 text-base resize-none" placeholder="例如：最近跑步完膝蓋外側緊緊的，或是肩膀一直很僵硬..." />
+                      <button onClick={handleAIGetRecommendation} disabled={loadingAi || !aiInput.trim()} className="mt-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl text-base transition-all flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 shadow-sm">
+                        {loadingAi ? <RefreshCw className="animate-spin" size={18} /> : <Sparkles size={18} />} 請 AI 給予專業建議
+                      </button>
+                      {aiRec && (
+                        <div className="mt-5 p-4 bg-indigo-100/50 border border-indigo-200 rounded-xl animate-in fade-in">
+                          <p className="text-base text-indigo-900 leading-relaxed font-medium whitespace-pre-line">{aiRec}</p>
+                          <button type="button" onClick={applyAiService} className="mt-4 w-full sm:w-auto text-base bg-white border border-indigo-300 text-indigo-700 font-bold px-4 py-2 rounded-lg hover:bg-indigo-50 transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                            <CheckCircle size={16} /> 👉 聽從建議，自動套用此服務
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
                 {successData ? (
                   <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 text-center">
