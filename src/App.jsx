@@ -1089,7 +1089,7 @@ export default function App() {
 {/* 👇 新增的病歷系統浮動按鈕 👇 */}
       {currentUser && (
         <a 
-          href="https://smart-medical-pf5laf0xs-teddy99995-4192s-projects.vercel.app/"     {/*====== 病歷系統網址 ========*/}
+          href="https://smart-medical-pf5laf0xs-teddy99995-4192s-projects.vercel.app/"     //====== 病歷系統網址 ========//
 
              target="_blank" 
           rel="noopener noreferrer" 
@@ -1416,7 +1416,7 @@ export default function App() {
                 )}
 
                 <a 
-                  href="https://smart-medical-pf5laf0xs-teddy99995-4192s-projects.vercel.app/"  {/* ====== 病歷系統網址 ======== */}
+                  href="https://smart-medical-pf5laf0xs-teddy99995-4192s-projects.vercel.app/"  //====== 病歷系統網址 ========//
                 
                   target="_blank" 
                   rel="noopener noreferrer"
