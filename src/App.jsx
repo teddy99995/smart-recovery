@@ -1089,7 +1089,9 @@ export default function App() {
 {/* 👇 新增的病歷系統浮動按鈕 👇 */}
       {currentUser && (
         <a 
-          href="https://smart-medical-pf5laf0xs-teddy99995-4192s-projects.vercel.app/"  {/* ====== 病歷系統網址 ======== */}
+          href="https://smart-medical-pf5laf0xs-teddy99995-4192s-projects.vercel.app/"
+            {/* ====== 病歷系統網址 ======== */}
+            
           target="_blank" 
           rel="noopener noreferrer" 
           className="fixed top-4 left-[140px] z-50 bg-[#151b2b] text-[#e2bba9] hover:bg-[#202942] border border-[#e2bba9]/30 font-bold py-2.5 px-4 rounded-full shadow-md flex items-center gap-2 transition-all active:scale-95"
