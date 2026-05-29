@@ -1101,7 +1101,7 @@ const handleDeleteAdvisor = async (id, name) => {
 
             {/* 3. 病歷系統按鈕 */}
             <a 
-              href="https://smart-medical-pf5laf0xs-teddy99995-4192s-projects.vercel.app/"     
+              href="https://smart-recovery-chart.vercel.app/"     
               target="_blank" 
               rel="noopener noreferrer" 
               className="bg-[#151b2b] text-[#e2bba9] hover:bg-[#202942] border border-[#e2bba9]/30 font-bold py-2.5 px-4 rounded-full shadow-md flex items-center gap-2 transition-all active:scale-95"
@@ -1430,7 +1430,7 @@ const handleDeleteAdvisor = async (id, name) => {
                 )}
 
                 <a 
-                  href="https://smart-medical-pf5laf0xs-teddy99995-4192s-projects.vercel.app/"  //====== 病歷系統網址 ========//
+                  href="https://smart-recovery-chart.vercel.app/"  //====== 病歷系統網址 ========//
                 
                   target="_blank" 
                   rel="noopener noreferrer"
