@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, User, Clock, Activity, Trash, PlusCircle, CheckCircle, AlertCircle, MessageCircle, MessageSquare, Clipboard, Lock, Users, LogOut, Key, Copy, Plus, List, Sun, Moon, Settings, Phone, Check, Filter, BarChart, Star, Crown, Bot, Sparkles, RefreshCw, DollarSign, Download, CalendarPlus, Inbox, AlertTriangle, FileText, UserPlus, Edit2, ShieldAlert, ShoppingBag } from 'lucide-react';
 
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, writeBatch } from "firebase/firestore";
+import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, writeBatch, updateDoc } from "firebase/firestore";
 
 // Firebase 初始化防護
 let firebaseConfig = {
@@ -214,6 +214,13 @@ export default function App() {
   const [schedules, setSchedules] = useState([]);
   const [customerMemos, setCustomerMemos] = useState({});
   const [teamMembers, setTeamMembers] = useState(DEFAULT_TEAM);
+
+  // 👇==== 新增：儲值套票方案的專屬狀態 ====👇
+  const [depositPlans, setDepositPlans] = useState([]);
+  const [newPlan, setNewPlan] = useState({ label: '', sessions: '', defaultPrice: '' });
+  const [editingPlanId, setEditingPlanId] = useState(null);
+  const [editPlanForm, setEditPlanForm] = useState({ label: '', sessions: '', defaultPrice: '' });
+  // 👆==================================👆
 
   // ==========================================
   // 👇 新增：改期系統專用狀態與邏輯 👇
@@ -583,7 +590,16 @@ export default function App() {
       }
     });
 
-    return () => { unsubAppt(); unsubSched(); unsubSettings(); unsubMemos(); unsubTeam(); unsubRevenue(); unsubPriceList(); };
+    // 👇==== 新增：監聽儲值方案 ====👇
+    const unsubPlans = onSnapshot(collection(db, "deposit_plans"), (snapshot) => {
+      const plans = [];
+      snapshot.forEach(doc => plans.push({ id: doc.id, ...doc.data() }));
+      // 依照堂數由小到大排序
+      setDepositPlans(plans.sort((a, b) => a.sessions - b.sessions));
+    });
+    // 👆========================👆;
+
+return () => { unsubAppt(); unsubSched(); unsubSettings(); unsubMemos(); unsubTeam(); unsubRevenue(); unsubPriceList(); unsubPlans(); };
   }, []);
 
   useEffect(() => { setSelectedAnalyticsAdvisors(teamMembers.map(m => m.id)); }, [teamMembers]);
@@ -658,13 +674,48 @@ const handleUpdatePassword = async (targetId, newPassword) => {
     } catch (err) { alert('新增失敗: ' + err.message); }
   };
 
-  const handleDeleteProduct = async (type, index) => {
+const handleDeleteProduct = async (type, index) => {
     if (!window.confirm("確定要刪除這個項目嗎？")) return;
     const updatedList = { ...priceList };
     updatedList[type] = updatedList[type].filter((_, i) => i !== index);
     try {
       await setDoc(doc(db, "settings", "priceList"), updatedList);
     } catch (err) { alert('刪除失敗'); }
+  }; // ✅ 幫 handleDeleteProduct 加上這個結尾大括號，把它關好！
+
+  // 👇==== 新增：儲值方案操作邏輯 ====👇
+  const handleAddPlan = async (e) => {
+    e.preventDefault();
+    if (!newPlan.label || !newPlan.sessions || !newPlan.defaultPrice) return alert("請完整填寫方案名稱、堂數與價格！");
+    try {
+      await addDoc(collection(db, "deposit_plans"), {
+        label: newPlan.label,
+        sessions: Number(newPlan.sessions),
+        defaultPrice: Number(newPlan.defaultPrice)
+      });
+      setNewPlan({ label: '', sessions: '', defaultPrice: '' });
+      alert('✅ 儲值方案新增成功！前台將會自動同步。');
+    } catch (err) { alert('新增失敗: ' + err.message); }
+  };
+
+  const handleDeletePlan = async (id, label) => {
+    if (!window.confirm(`確定要刪除「${label}」嗎？\n這將會從前台收銀選項中移除。`)) return;
+    try {
+      await deleteDoc(doc(db, "deposit_plans", id));
+    } catch (err) { alert('刪除失敗: ' + err.message); }
+  };
+
+  const handleSaveEditPlan = async (id) => {
+    if (!editPlanForm.label || !editPlanForm.sessions || !editPlanForm.defaultPrice) return alert("資料不能為空！");
+    try {
+      await updateDoc(doc(db, "deposit_plans", id), {
+        label: editPlanForm.label,
+        sessions: Number(editPlanForm.sessions),
+        defaultPrice: Number(editPlanForm.defaultPrice)
+      });
+      setEditingPlanId(null);
+      alert('✅ 方案修改成功！');
+    } catch (err) { alert('修改失敗: ' + err.message); }
   };
 
   const handleAddCartItem = (name, price, qty, isBase = false) => {
@@ -1457,6 +1508,71 @@ const handleDeleteAdvisor = async (id, name) => {
                 <div className="flex justify-between items-center border-b pb-4">
                   <h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><ShoppingBag className="text-[#9aa486]" /> 商品與價目表設定</h3>
                 </div>
+                {/* 👇==== 新增：儲值合約套票管理區塊 ====👇 */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border mt-6 border-emerald-200">
+                  <h4 className="text-lg font-bold text-slate-800 mb-2 border-b pb-3 flex items-center gap-2">
+                    <DollarSign className="text-emerald-500" /> 儲值合約套票管理
+                  </h4>
+                  <p className="text-sm text-slate-500 mb-6">此處設定的方案會直接連動至「前台顧問端」的套票儲值選單。</p>
+
+                  <div className="overflow-x-auto mb-6">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b text-slate-500 bg-slate-50">
+                          <th className="py-3 px-4 font-bold rounded-tl-xl">方案名稱</th>
+                          <th className="py-3 px-4 font-bold">增加堂數</th>
+                          <th className="py-3 px-4 font-bold">預設價格 (NT$)</th>
+                          <th className="py-3 px-4 font-bold text-right rounded-tr-xl">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {depositPlans.length === 0 && (
+                          <tr><td colSpan="4" className="text-center py-6 text-slate-400">目前尚無儲值方案</td></tr>
+                        )}
+                        {depositPlans.map(plan => {
+                          const isEditing = editingPlanId === plan.id;
+                          return (
+                            <tr key={plan.id} className="border-b border-slate-100 hover:bg-slate-50">
+                              <td className="py-3 px-4 font-bold text-slate-700">
+                                {isEditing ? <input type="text" value={editPlanForm.label} onChange={e => setEditPlanForm({...editPlanForm, label: e.target.value})} className="p-2 border rounded outline-none" /> : plan.label}
+                              </td>
+                              <td className="py-3 px-4 font-bold text-emerald-600">
+                                {isEditing ? <input type="number" value={editPlanForm.sessions} onChange={e => setEditPlanForm({...editPlanForm, sessions: e.target.value})} className="w-20 p-2 border rounded outline-none" /> : `+ ${plan.sessions} 堂`}
+                              </td>
+                              <td className="py-3 px-4 font-bold text-slate-700">
+                                {isEditing ? <input type="number" value={editPlanForm.defaultPrice} onChange={e => setEditPlanForm({...editPlanForm, defaultPrice: e.target.value})} className="w-24 p-2 border rounded outline-none" /> : `$ ${plan.defaultPrice.toLocaleString()}`}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                {isEditing ? (
+                                  <div className="flex justify-end gap-2">
+                                    <button onClick={() => setEditingPlanId(null)} className="text-slate-400 hover:text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold">取消</button>
+                                    <button onClick={() => handleSaveEditPlan(plan.id)} className="text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-lg text-xs font-bold">儲存</button>
+                                  </div>
+                                ) : (
+                                  <div className="flex justify-end gap-2">
+                                    <button onClick={() => { setEditingPlanId(plan.id); setEditPlanForm(plan); }} className="text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 p-2 rounded-lg transition-colors"><Edit2 size={16} /></button>
+                                    <button onClick={() => handleDeletePlan(plan.id, plan.label)} className="text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 p-2 rounded-lg transition-colors"><Trash size={16} /></button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100">
+                    <h4 className="font-bold text-emerald-800 mb-3 flex items-center gap-2"><PlusCircle size={18} /> 新增儲值方案</h4>
+                    <form onSubmit={handleAddPlan} className="flex flex-col sm:flex-row gap-3">
+                      <input type="text" placeholder="方案名稱 (例: 5堂優化套票)" required value={newPlan.label} onChange={e => setNewPlan({ ...newPlan, label: e.target.value })} className="flex-1 p-3 bg-white border border-emerald-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400" />
+                      <input type="number" placeholder="增加堂數 (例: 5)" required value={newPlan.sessions} onChange={e => setNewPlan({ ...newPlan, sessions: e.target.value })} className="w-full sm:w-32 p-3 bg-white border border-emerald-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400" />
+                      <input type="number" placeholder="價格 (NT$)" required value={newPlan.defaultPrice} onChange={e => setNewPlan({ ...newPlan, defaultPrice: e.target.value })} className="w-full sm:w-36 p-3 bg-white border border-emerald-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400" />
+                      <button type="submit" className="bg-emerald-600 text-white font-bold px-6 py-3 rounded-lg shadow-sm hover:bg-emerald-700 transition-colors whitespace-nowrap">新增方案</button>
+                    </form>
+                  </div>
+                </div>
+                {/* 👆====================================👆 */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border">
                   <p className="text-sm text-slate-500 mb-6">在此設定的商品與價格將會直接連動並顯示在「💰 收銀機」介面中，方便顧問快速點選。</p>
 
