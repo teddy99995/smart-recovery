@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, User, Clock, Activity, Trash, PlusCircle, CheckCircle, AlertCircle, MessageCircle, MessageSquare, Clipboard, Lock, Users, LogOut, Key, Copy, Plus, List, Sun, Moon, Settings, Phone, Check, Filter, BarChart, Star, Crown, Bot, Sparkles, RefreshCw, DollarSign, Download, CalendarPlus, Inbox, AlertTriangle, FileText, UserPlus, Edit2, ShieldAlert, ShoppingBag } from 'lucide-react';
+import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
+import { Calendar, User, Clock, Activity, Trash, PlusCircle, CheckCircle, AlertCircle, MessageCircle, MessageSquare, Clipboard, Lock, Users, LogOut, Key, Copy, Plus, List, Sun, Moon, Settings, Phone, Check, Filter, BarChart, Star, Crown, Bot, Sparkles, RefreshCw, DollarSign, Download, CalendarPlus, Inbox, AlertTriangle, FileText, UserPlus, Edit2, ShieldAlert, ShoppingBag, Zap, Ticket, Package, Trash2 } from 'lucide-react';
 
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, writeBatch, updateDoc } from "firebase/firestore";
 
-// Firebase 初始化防護
+// ==============================================
+// ⚙️ Firebase 初始化防護與設定
+// ==============================================
 let firebaseConfig = {
   apiKey: "AIzaSyB86wjSD0jdCPeOY_7XJBCU9_tWzpbdGFk",
   authDomain: "smart-recovery-9ec63.firebaseapp.com",
@@ -25,7 +27,9 @@ const db = getFirestore(app);
 
 const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbz44rH6SVbcFQPUkdoxB7GVyeFuhZ-eO2lKqpYvFI-xDKHs1TP6eeV8HMLy5roCBIGyEQ/exec";
 
-// 常數與預設資料
+// ==============================================
+// 📌 常數與預設資料
+// ==============================================
 const SESSION_PRICE = 1600;
 const BODY_PARTS = ['肩頸', '上背/下背', '骨盆/髖', '大腿', '膝蓋', '小腿/腳踝', '手臂/手腕'];
 const TAG_OPTIONS = ['⭐ VIP', '⚠️ 常遲到', '💪 怕痛', '🤰 孕婦', '🤫 需要安靜', '常客', '需輕柔', '健談', '奧客'];
@@ -42,11 +46,14 @@ const serviceTypes = [
   "身體大保養", "其他（詳情請打在備註）"
 ];
 
+// ==============================================
+// 🧩 獨立共用子元件
+// ==============================================
 
 // 品牌聯絡資訊組件
 const BrandFooter = () => (
   <footer className="w-full text-center px-4 py-8 text-xs text-white/40 relative z-10 space-y-1">
-    <p>© 2026 Smart Recovery</p>
+    <p>© {new Date().getFullYear()} Smart Recovery</p>
     <p>官方聯絡信箱：smartrecovery.studio@gmail.com</p>
     <p>服務預約：請透過上方 LINE 官方帳號</p>
   </footer>
@@ -142,7 +149,9 @@ export const BossDashboard = ({ data, teamMembers = [] }) => {
   } catch (err) { return null; }
 };
 
-// 輔助函式區
+// ==============================================
+// 🛠️ 全域輔助函式區
+// ==============================================
 async function callGeminiAPI(prompt, retries = 3, delay = 1000) {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
@@ -209,7 +218,7 @@ const getDayLabel = (dateStr) => {
 // ==============================================
 export default function App() {
 
-  // ⭐️⭐️⭐️ 修復點：把核心狀態宣告移到最上面，避免白畫面錯誤 ⭐️⭐️⭐️
+  // ⭐️⭐️⭐️ 核心狀態宣告 ⭐️⭐️⭐️
   const [appointments, setAppointments] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [customerMemos, setCustomerMemos] = useState({});
@@ -223,12 +232,12 @@ export default function App() {
   // 👆==================================👆
 
   // ==========================================
-  // 👇 新增：改期系統專用狀態與邏輯 👇
+  // 👇 改期系統專用狀態與邏輯 👇
   // ==========================================
   const [editingAppt, setEditingAppt] = useState(null);
   const [editFormData, setEditFormData] = useState({ date: '', timeSlots: [], advisorId: '' });
 
-  // 計算改期時可用的空檔 (要排除別人約走的，但保留自己原本佔用的時段)
+  // 計算改期時可用的空檔
   const editAvailableSlots = useMemo(() => {
     if (!editFormData.date || !editFormData.advisorId) return [];
     const dailySchedule = schedules.find(s => s.advisorId === editFormData.advisorId && s.date === editFormData.date);
@@ -244,58 +253,6 @@ export default function App() {
     return dailySchedule.slots.filter(slot => !bookedSlots.includes(slot)).sort();
   }, [editFormData.date, editFormData.advisorId, schedules, appointments, editingAppt]);
 
-  const handleOpenEditModal = (appt) => {
-    setEditingAppt(appt);
-    setEditFormData({
-      date: appt.date,
-      timeSlots: appt.timeSlots || [],
-      advisorId: appt.advisorId
-    });
-  };
-
-  const handleToggleEditSlot = (slot) => {
-    setEditFormData(prev => ({
-      ...prev,
-      timeSlots: prev.timeSlots.includes(slot) ? prev.timeSlots.filter(s => s !== slot) : [...prev.timeSlots, slot]
-    }));
-  };
-
-  const handleSaveEditAppt = async () => {
-    if (editFormData.timeSlots.length === 0) return alert("請至少選擇一個時段！");
-    
-    const sortedSlots = [...editFormData.timeSlots].sort();
-    const exactDisplayTime = formatTimeSlots(sortedSlots);
-    const gasTime = `${sortedSlots[0].split('-')[0]}-${sortedSlots[sortedSlots.length - 1].split('-')[1]}`;
-    
-    const finalAdvisorName = teamMembers.find(m => m.id === editFormData.advisorId)?.name || '未知';
-    const oldDateStr = `${editingAppt.date} ${editingAppt.exactDisplayTime}`;
-    const newDateStr = `${editFormData.date} ${exactDisplayTime}`;
-    
-    let updatedNeeds = editingAppt.needs || "";
-    
-    // 如果日期/時間或顧問有變動，自動加註到備註欄
-    if (oldDateStr !== newDateStr || editingAppt.advisorId !== editFormData.advisorId) {
-       const changeLog = `\n⚠️ [系統紀錄: 由 ${oldDateStr} 改期至 ${newDateStr}]`;
-       updatedNeeds += changeLog;
-    }
-
-    try {
-      await setDoc(doc(db, "appointments", editingAppt.id), {
-        date: editFormData.date,
-        timeSlots: editFormData.timeSlots,
-        exactDisplayTime,
-        gasTime,
-        advisorId: editFormData.advisorId,
-        advisorName: finalAdvisorName,
-        needs: updatedNeeds.trim()
-      }, { merge: true });
-      
-      alert(`✅ 改期成功！\n已更新為：${newDateStr}`);
-      setEditingAppt(null);
-    } catch (error) {
-      alert("改期失敗：" + error.message);
-    }
-  };
   // ==========================================
   
   const [isAdminHidden, setIsAdminHidden] = useState(false);
@@ -320,43 +277,19 @@ export default function App() {
   const SLOT_HEIGHT = 48; 
   const START_HOUR = 9;
 
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTimeLine(new Date()), 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const getCalendarDays = () => {
-    const dates = [];
-    const base = new Date(calBaseDate);
-    if (calViewMode === 'day') {
-      dates.push(base);
-    } else {
-      const day = base.getDay();
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(base);
-        d.setDate(base.getDate() - day + i);
-        dates.push(d);
-      }
-    }
-    return dates;
-  };
-  const calendarDays = getCalendarDays();
-
-  const [calendarDate, setCalendarDate] = useState(new Date());
-  const [warRoomDate, setWarRoomDate] = useState(new Date().toISOString().split('T')[0]);
-
-  const [showRebookModal, setShowRebookModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(null);
-  const [memoInput, setMemoInput] = useState('');
-  const [rebookCustomer, setRebookCustomer] = useState({ name: "", phone: "" });
-  const [rebookFormData, setRebookFormData] = useState({ date: "", time: "", service: "", consultant: "" });
-
+  // 取得本機儲存的客戶資料
   const getSavedCustomer = () => {
     try { const saved = localStorage.getItem('smartRecoveryCustomer'); return saved ? JSON.parse(saved) : { name: '', phone: '' }; }
     catch { return { name: '', phone: '' }; }
   };
   const savedInfo = getSavedCustomer();
 
+  // 其他 UI 與表單狀態
+  const [showRebookModal, setShowRebookModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(null);
+  const [memoInput, setMemoInput] = useState('');
+  const [rebookCustomer, setRebookCustomer] = useState({ name: "", phone: "" });
+  const [rebookFormData, setRebookFormData] = useState({ date: "", time: "", service: "", consultant: "" });
   const [formData, setFormData] = useState({
     name: savedInfo.name, phone: savedInfo.phone, isFirstTime: '', advisorId: '', date: '', timeSlots: [], serviceType: '', needs: '',
     painLevel: 5, bodyParts: []
@@ -372,6 +305,7 @@ export default function App() {
   const [clientAppts, setClientAppts] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
 
+  // 排班狀態
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleAdvisorId, setScheduleAdvisorId] = useState('');
   const [selectedSlots, setSelectedSlots] = useState([]);
@@ -380,20 +314,19 @@ export default function App() {
   const [rangeEndDate, setRangeEndDate] = useState('');
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
+  // 戰情室與營收狀態
   const [apptFilter, setApptFilter] = useState('today');
   const [adminViewAdvisor, setAdminViewAdvisor] = useState('all');
-  const [copiedPhoneId, setCopiedPhoneId] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
   const [selectedAnalyticsAdvisors, setSelectedAnalyticsAdvisors] = useState(DEFAULT_TEAM.map(m => m.id));
 
+  // POS 與價格狀態
   const [showPOS, setShowPOS] = useState(false);
   const [cart, setCart] = useState([]);
   const [customItem, setCustomItem] = useState({ name: '', price: '', qty: 1 });
   const [calcDiscount, setCalcDiscount] = useState('10');
   const [calcAdvisor, setCalcAdvisor] = useState('');
   const [revenueRecords, setRevenueRecords] = useState([]);
-  const [posSelectedMonth, setPosSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
-
   const [priceList, setPriceList] = useState({ services: [], addons: [] });
   const [newProduct, setNewProduct] = useState({ type: 'services', name: '', price: '' });
 
@@ -401,108 +334,22 @@ export default function App() {
   const [expandedRevCustomer, setExpandedRevCustomer] = useState(null);
   const [editingRevenue, setEditingRevenue] = useState(null);
 
-  // 以客人為索引，動態計算該月的營收分組
-  const monthlyRevenuesByCustomer = useMemo(() => {
-    const filtered = revenueRecords.filter(r => r.date && r.date.startsWith(selectedMonth));
-    const groups = {};
-    filtered.forEach(r => {
-      let cName = "一般現場客";
-      // 從明細中尋找括號裡的客戶名稱 (例如: "基礎服務 (王大明)")
-      const baseItem = (r.items || []).find(i => i.isBase || i.name.includes('('));
-      if (baseItem) {
-        const match = baseItem.name.match(/\(([^)]+)\)/);
-        if (match) cName = match[1];
-      }
-      if (!groups[cName]) groups[cName] = { total: 0, records: [] };
-      groups[cName].records.push(r);
-      groups[cName].total += r.finalAmount;
-    });
-    // 依據該客人的總消費金額由高到低排序
-    return Object.entries(groups).sort((a, b) => b[1].total - a[1].total);
-  }, [revenueRecords, selectedMonth]);
-
-  // 修改營收紀錄
-  const handleUpdateRevenue = async (e) => {
-    e.preventDefault();
-    try {
-      await setDoc(doc(db, "revenueRecords", editingRevenue.id), {
-        finalAmount: Number(editingRevenue.finalAmount),
-        advisorId: editingRevenue.advisorId,
-        date: editingRevenue.date
-      }, { merge: true });
-      setEditingRevenue(null);
-      alert("✅ 營收紀錄修改成功！");
-    } catch (err) { alert("修改失敗：" + err.message); }
-  };
-
-  // 刪除營收紀錄
-  const handleDeleteRevenue = async (id) => {
-    if (window.confirm("⚠️ 確定要刪除這筆營收紀錄嗎？\n(刪除後將從本月報表中永久移除，無法復原)")) {
-      try {
-        await deleteDoc(doc(db, "revenueRecords", id));
-        alert("🗑️ 已成功刪除！");
-      } catch (err) { alert("刪除失敗：" + err.message); }
-    }
-  };
-  
-  const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-  const calcFinalAmount = Math.round(cartTotal * (Number(calcDiscount) || 10) / 10);
-
+  // AI 與其他
   const [aiInput, setAiInput] = useState('');
   const [aiRec, setAiRec] = useState('');
   const [loadingAi, setLoadingAi] = useState(false);
   const [adviceMap, setAdviceMap] = useState({});
 
-  const next28Days = useMemo(() => {
-    const days = []; const today = new Date();
-    for (let i = 1; i <= 28; i++) {
-      const nextDay = new Date(today); nextDay.setDate(today.getDate() + i); days.push(nextDay.toISOString().split('T')[0]);
-    }
-    return days;
+  // ==============================================
+  // 🔄 生命週期與資料監聽 (Firebase onSnapshot)
+  // ==============================================
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTimeLine(new Date()), 60000);
+    return () => clearInterval(timer);
   }, []);
 
-  const availableMonths = useMemo(() => {
-    const months = new Set(appointments.map(a => a.date ? a.date.substring(0, 7) : null).filter(Boolean));
-    const monthArray = Array.from(months).sort().reverse();
-    const currentMonth = new Date().toISOString().substring(0, 7);
-    if (!monthArray.includes(currentMonth)) monthArray.unshift(currentMonth);
-    return monthArray;
-  }, [appointments]);
-
-  const availablePosMonths = useMemo(() => {
-    const months = new Set(revenueRecords.map(r => r.date ? r.date.substring(0, 7) : null).filter(Boolean));
-    const monthArray = Array.from(months).sort().reverse();
-    const currentMonthStr = new Date().toISOString().substring(0, 7);
-    if (!monthArray.includes(currentMonthStr)) monthArray.unshift(currentMonthStr);
-    return monthArray;
-  }, [revenueRecords]);
-
-  const monthlyTotalRevenue = useMemo(() => {
-    return revenueRecords.filter(record => record.date && record.date.startsWith(posSelectedMonth)).reduce((sum, record) => sum + record.finalAmount, 0);
-  }, [revenueRecords, posSelectedMonth]);
-
-  const renderCalendarCell = (slot, date, advId) => {
-    const isBooked = appointments.find(a => a.advisorId === advId && a.date === date && a.status !== '已取消' && a.timeSlots?.includes(slot));
-    const isScheduled = schedules.find(s => s.advisorId === advId && s.date === date)?.slots?.includes(slot);
-    
-    if (isBooked) return (
-      <div key={`${advId}-${slot}`} onClick={() => handleQuickCheckout(isBooked)} className="h-10 text-[10px] bg-rose-100 border border-rose-200 text-rose-800 font-bold p-1 rounded-md overflow-hidden cursor-pointer hover:bg-rose-200" title={isBooked.name}>
-        {isBooked.name}
-      </div>
-    );
-    if (isScheduled) return (
-      <div key={`${advId}-${slot}`} onClick={() => { 
-        setRebookCustomer({name: "現場預約", phone: ""}); 
-        setRebookFormData({ date, time: slot, service: serviceTypes[0], consultant: advId, isBackend: true }); 
-        setShowRebookModal(true); 
-      }} className="h-10 text-[10px] bg-[#f4faec] border border-[#9aa486] text-[#9aa486] font-bold flex items-center justify-center rounded-md cursor-pointer hover:bg-[#e3b5a1] hover:text-white transition-colors">
-        空檔
-      </div>
-    );
-    return <div key={`${advId}-${slot}`} className="h-10 text-[10px] bg-slate-50 border border-slate-100 flex items-center justify-center rounded-md text-slate-300">無班</div>;
-  };
-
   useEffect(() => {
+    // 解決 LINE 內建瀏覽器問題
     const isLineApp = navigator.userAgent.includes('Line');
     const hasExternalParam = window.location.search.includes('openExternalBrowser=1');
     if (isLineApp && !hasExternalParam) {
@@ -550,7 +397,6 @@ export default function App() {
 
    const unsubTeam = onSnapshot(collection(db, "users"), (snapshot) => {
       if (snapshot.empty) {
-        // 如果資料庫是空的，自動把 DEFAULT_TEAM 初始化寫入 Firebase
         DEFAULT_TEAM.forEach(member => {
           setDoc(doc(db, "users", member.id), member);
         });
@@ -594,12 +440,10 @@ export default function App() {
     const unsubPlans = onSnapshot(collection(db, "deposit_plans"), (snapshot) => {
       const plans = [];
       snapshot.forEach(doc => plans.push({ id: doc.id, ...doc.data() }));
-      // 依照堂數由小到大排序
       setDepositPlans(plans.sort((a, b) => a.sessions - b.sessions));
     });
-    // 👆========================👆;
 
-return () => { unsubAppt(); unsubSched(); unsubSettings(); unsubMemos(); unsubTeam(); unsubRevenue(); unsubPriceList(); unsubPlans(); };
+    return () => { unsubAppt(); unsubSched(); unsubSettings(); unsubMemos(); unsubTeam(); unsubRevenue(); unsubPriceList(); unsubPlans(); };
   }, []);
 
   useEffect(() => { setSelectedAnalyticsAdvisors(teamMembers.map(m => m.id)); }, [teamMembers]);
@@ -610,6 +454,74 @@ return () => { unsubAppt(); unsubSched(); unsubSettings(); unsubMemos(); unsubTe
       setSelectedSlots(existing ? existing.slots : []); setAdditionalDates([]);
     }
   }, [scheduleAdvisorId, scheduleDate, schedules]);
+  // ==============================================
+  // 🧮 動態計算與進階邏輯 (useMemo)
+  // ==============================================
+  
+  // 以客人為索引，動態計算該月的營收分組
+  const monthlyRevenuesByCustomer = useMemo(() => {
+    const filtered = revenueRecords.filter(r => r.date && r.date.startsWith(selectedMonth));
+    const groups = {};
+    filtered.forEach(r => {
+      let cName = "一般現場客";
+      // 從明細中尋找括號裡的客戶名稱 (例如: "基礎服務 (王大明)")
+      const baseItem = (r.items || []).find(i => i.isBase || i.name.includes('('));
+      if (baseItem) {
+        const match = baseItem.name.match(/\(([^)]+)\)/);
+        if (match) cName = match[1];
+      }
+      if (!groups[cName]) groups[cName] = { total: 0, records: [] };
+      groups[cName].records.push(r);
+      groups[cName].total += r.finalAmount;
+    });
+    // 依據該客人的總消費金額由高到低排序
+    return Object.entries(groups).sort((a, b) => b[1].total - a[1].total);
+  }, [revenueRecords, selectedMonth]);
+
+  const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+  const calcFinalAmount = Math.round(cartTotal * (Number(calcDiscount) || 10) / 10);
+
+  const next28Days = useMemo(() => {
+    const days = []; const today = new Date();
+    for (let i = 1; i <= 28; i++) {
+      const nextDay = new Date(today); nextDay.setDate(today.getDate() + i); days.push(nextDay.toISOString().split('T')[0]);
+    }
+    return days;
+  }, []);
+
+  const availableMonths = useMemo(() => {
+    const months = new Set(appointments.map(a => a.date ? a.date.substring(0, 7) : null).filter(Boolean));
+    const monthArray = Array.from(months).sort().reverse();
+    const currentMonth = new Date().toISOString().substring(0, 7);
+    if (!monthArray.includes(currentMonth)) monthArray.unshift(currentMonth);
+    return monthArray;
+  }, [appointments]);
+
+  // ==============================================
+  // 🖱️ 互動操作處理函式：登入、權限與營收管理
+  // ==============================================
+
+  const handleUpdateRevenue = async (e) => {
+    e.preventDefault();
+    try {
+      await setDoc(doc(db, "revenueRecords", editingRevenue.id), {
+        finalAmount: Number(editingRevenue.finalAmount),
+        advisorId: editingRevenue.advisorId,
+        date: editingRevenue.date
+      }, { merge: true });
+      setEditingRevenue(null);
+      alert("✅ 營收紀錄修改成功！");
+    } catch (err) { alert("修改失敗：" + err.message); }
+  };
+
+  const handleDeleteRevenue = async (id) => {
+    if (window.confirm("⚠️ 確定要刪除這筆營收紀錄嗎？\n(刪除後將從本月報表中永久移除，無法復原)")) {
+      try {
+        await deleteDoc(doc(db, "revenueRecords", id));
+        alert("🗑️ 已成功刪除！");
+      } catch (err) { alert("刪除失敗：" + err.message); }
+    }
+  };
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -617,16 +529,14 @@ return () => { unsubAppt(); unsubSched(); unsubSettings(); unsubMemos(); unsubTe
     if (user) {
       setCurrentUser(user); setScheduleAdvisorId(user.id); setShowLoginModal(false);
       setLoginForm({ account: teamMembers[0]?.id || 'ted', password: '' }); setApptFilter('today'); setAdminViewAdvisor('all');
-
-      // 👇 就是加上下面這行！讓登入時自動把日曆視角綁定正確的值
+      // 登入時自動把日曆視角綁定正確的值
       setCalTargetAdvisor(user.role === 'admin' ? 'all' : user.id);
-      
     } else { alert("密碼錯誤！請重新輸入。"); }
   };
 
   const handleLogout = () => { setCurrentUser(null); setAdminTab('appointments'); setAdditionalDates([]); setRangeStartDate(''); setRangeEndDate(''); };
 
-const handleResetPassword = async (e) => {
+  const handleResetPassword = async (e) => {
     e.preventDefault();
     if (resetForm.authCode !== '950901') { 
       return alert("⚠️ 授權碼錯誤，請聯繫 Ted 執行長！");
@@ -639,7 +549,7 @@ const handleResetPassword = async (e) => {
     } catch (err) { alert("重設失敗：" + err.message); }
   };
 
-const handleUpdatePassword = async (targetId, newPassword) => {
+  const handleUpdatePassword = async (targetId, newPassword) => {
     if (!newPassword.trim()) return alert("密碼不能為空！");
     try {
       await setDoc(doc(db, "users", targetId), { pwd: newPassword.trim() }, { merge: true });
@@ -662,6 +572,10 @@ const handleUpdatePassword = async (targetId, newPassword) => {
     } catch (e) { alert('匯出失敗，請檢查網路連線。'); }
   };
 
+  // ==============================================
+  // 🖱️ 互動操作處理函式：商品、套票與收銀機 (POS)
+  // ==============================================
+
   const handleAddProduct = async (e) => {
     e.preventDefault();
     if (!newProduct.name || !newProduct.price) return;
@@ -674,14 +588,14 @@ const handleUpdatePassword = async (targetId, newPassword) => {
     } catch (err) { alert('新增失敗: ' + err.message); }
   };
 
-const handleDeleteProduct = async (type, index) => {
+  const handleDeleteProduct = async (type, index) => {
     if (!window.confirm("確定要刪除這個項目嗎？")) return;
     const updatedList = { ...priceList };
     updatedList[type] = updatedList[type].filter((_, i) => i !== index);
     try {
       await setDoc(doc(db, "settings", "priceList"), updatedList);
     } catch (err) { alert('刪除失敗'); }
-  }; // ✅ 幫 handleDeleteProduct 加上這個結尾大括號，把它關好！
+  };
 
   // 👇==== 新增：儲值方案操作邏輯 ====👇
   const handleAddPlan = async (e) => {
@@ -778,6 +692,9 @@ const handleDeleteProduct = async (type, index) => {
     setCalcDiscount('10'); 
     setShowPOS(true);
   };
+  // ==============================================
+  // 📅 預約、改期與黑名單管理核心邏輯
+  // ==============================================
 
   const handleUpdateApptStatus = async (appt, newStatus) => {
     setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, status: newStatus } : a));
@@ -866,7 +783,6 @@ const handleDeleteProduct = async (type, index) => {
       setConflictError('請完整填寫所有必填欄位，並選擇至少一個時段'); return;
     }
 
-    // 聯絡方式：台灣手機或 Line ID 驗證
     const contactValue = formData.phone.trim();
     const phoneRegex = /^09\d{8}$/;
     const lineIdRegex = /^[a-zA-Z0-9.\-_]{4,20}$/; 
@@ -949,6 +865,63 @@ const handleDeleteProduct = async (type, index) => {
     setClientAppts(found); setHasSearched(true);
   };
 
+  // 改期系統 (儲存新時間)
+  const handleSaveEditAppt = async () => {
+    if (editFormData.timeSlots.length === 0) return alert("請至少選擇一個時段！");
+    
+    const sortedSlots = [...editFormData.timeSlots].sort();
+    const exactDisplayTime = formatTimeSlots(sortedSlots);
+    const gasTime = `${sortedSlots[0].split('-')[0]}-${sortedSlots[sortedSlots.length - 1].split('-')[1]}`;
+    
+    const finalAdvisorName = teamMembers.find(m => m.id === editFormData.advisorId)?.name || '未知';
+    const oldDateStr = `${editingAppt.date} ${editingAppt.exactDisplayTime}`;
+    const newDateStr = `${editFormData.date} ${exactDisplayTime}`;
+    
+    let updatedNeeds = editingAppt.needs || "";
+    
+    if (oldDateStr !== newDateStr || editingAppt.advisorId !== editFormData.advisorId) {
+       const changeLog = `\n⚠️ [系統紀錄: 由 ${oldDateStr} 改期至 ${newDateStr}]`;
+       updatedNeeds += changeLog;
+    }
+
+    try {
+      await setDoc(doc(db, "appointments", editingAppt.id), {
+        date: editFormData.date,
+        timeSlots: editFormData.timeSlots,
+        exactDisplayTime,
+        gasTime,
+        advisorId: editFormData.advisorId,
+        advisorName: finalAdvisorName,
+        needs: updatedNeeds.trim()
+      }, { merge: true });
+      
+      alert(`✅ 改期成功！\n已更新為：${newDateStr}`);
+      setEditingAppt(null);
+    } catch (error) {
+      alert("改期失敗：" + error.message);
+    }
+  };
+
+  const handleOpenEditModal = (appt) => {
+    setEditingAppt(appt);
+    setEditFormData({
+      date: appt.date,
+      timeSlots: appt.timeSlots || [],
+      advisorId: appt.advisorId
+    });
+  };
+
+  const handleToggleEditSlot = (slot) => {
+    setEditFormData(prev => ({
+      ...prev,
+      timeSlots: prev.timeSlots.includes(slot) ? prev.timeSlots.filter(s => s !== slot) : [...prev.timeSlots, slot]
+    }));
+  };
+
+  // ==============================================
+  // 👥 團隊管理與排班處理
+  // ==============================================
+
   const handleAddAdvisor = async (e) => {
     e.preventDefault();
     if (teamMembers.find(m => m.id === newAdvisor.id)) return alert('帳號ID已存在，請使用另一個英文帳號！');
@@ -960,7 +933,7 @@ const handleDeleteProduct = async (type, index) => {
     } catch (err) { alert('新增失敗：' + err.message); }
   };
 
-const handleDeleteAdvisor = async (id, name) => {
+  const handleDeleteAdvisor = async (id, name) => {
     if (id === 'ted' || id === 'admin') return alert('⚠️ 無法刪除最高管理員！');
     if (!window.confirm(`確定要徹底刪除團隊成員「${name}」嗎？\n(過去由他服務的訂單依然會保留姓名，不會影響營收數據)`)) return;
     try { 
@@ -977,31 +950,6 @@ const handleDeleteAdvisor = async (id, name) => {
   };
 
   const displayTeam = teamMembers.filter(m => !(m.id === 'admin' && isAdminHidden));
-
-  const handleAIGetRecommendation = async () => {
-    if (!aiInput.trim()) return;
-    setLoadingAi(true);
-    const prompt = `客人描述身體狀況：「${aiInput}」。請從以下 Smart Recovery 的服務中，推薦一個最適合的項目，並給予一句溫暖簡短的建議原因。服務選項：${serviceTypes.join('、')}。回應格式：【推薦項目】：(填入服務名稱)\n【建議原因】：(填入簡短原因)`;
-    try { const res = await callGeminiAPI(prompt); setAiRec(res.trim()); } catch (e) { setAiRec("抱歉，目前 AI 顧問有點忙碌，請稍後再試。"); } finally { setLoadingAi(false); }
-  };
-
-  const applyAiService = () => {
-    const matchedService = serviceTypes.find(s => aiRec && aiRec.includes(s));
-    if (matchedService) { setFormData(prev => ({ ...prev, serviceType: matchedService })); alert(`✅ 已為您自動套用服務：${matchedService}`); }
-    else { alert("請手手動在下方表單選擇對應的服務喔！"); }
-  };
-
-  const generatePostSessionAdvice = async (apptId, customerName, service, note) => {
-    setAdviceMap(prev => ({ ...prev, [apptId]: '✨ 正在為客人量身打造課後保養建議...' }));
-    const prompt = `您是專業運動恢復顧問。您剛為客人「${customerName}」完成了「${service}」服務。客人備註：「${note || '無'}」。請生成一段溫暖的 LINE 課後關心訊息。包含：1.溫馨問候 2.針對服務的3個居家伸展建議(條列式) 3.結語。`;
-    try { const advice = await callGeminiAPI(prompt); setAdviceMap(prev => ({ ...prev, [apptId]: advice })); } catch (e) { setAdviceMap(prev => ({ ...prev, [apptId]: `❌ 產生失敗：${e.message}` })); }
-  };
-
-  const copyAdvice = (apptId) => {
-    const text = adviceMap[apptId]; if (!text) return;
-    const textArea = document.createElement("textarea"); textArea.value = text; document.body.appendChild(textArea); textArea.select();
-    try { document.execCommand('copy'); alert('✅ 已複製！可直接貼上至 LINE 傳給客人'); } catch (err) { } document.body.removeChild(textArea);
-  };
 
   const handleSectionSelect = (startH, endH) => {
     const sectionSlots = ALL_TIME_SLOTS.filter(s => { const h = parseInt(s.split(':')[0]); return h >= startH && h < endH; });
@@ -1054,6 +1002,39 @@ const handleDeleteAdvisor = async (id, name) => {
     try { await setDoc(doc(db, "settings", "teamConfig"), { activeIds: newActiveIds }, { merge: true }); }
     catch (error) { alert("狀態更新失敗，請檢查網路連線。"); }
   };
+
+  // ==============================================
+  // 🤖 AI 智能輔助函式 (Gemini API)
+  // ==============================================
+
+  const handleAIGetRecommendation = async () => {
+    if (!aiInput.trim()) return;
+    setLoadingAi(true);
+    const prompt = `客人描述身體狀況：「${aiInput}」。請從以下 Smart Recovery 的服務中，推薦一個最適合的項目，並給予一句溫暖簡短的建議原因。服務選項：${serviceTypes.join('、')}。回應格式：【推薦項目】：(填入服務名稱)\n【建議原因】：(填入簡短原因)`;
+    try { const res = await callGeminiAPI(prompt); setAiRec(res.trim()); } catch (e) { setAiRec("抱歉，目前 AI 顧問有點忙碌，請稍後再試。"); } finally { setLoadingAi(false); }
+  };
+
+  const applyAiService = () => {
+    const matchedService = serviceTypes.find(s => aiRec && aiRec.includes(s));
+    if (matchedService) { setFormData(prev => ({ ...prev, serviceType: matchedService })); alert(`✅ 已為您自動套用服務：${matchedService}`); }
+    else { alert("請手手動在下方表單選擇對應的服務喔！"); }
+  };
+
+  const generatePostSessionAdvice = async (apptId, customerName, service, note) => {
+    setAdviceMap(prev => ({ ...prev, [apptId]: '✨ 正在為客人量身打造課後保養建議...' }));
+    const prompt = `您是專業運動恢復顧問。您剛為客人「${customerName}」完成了「${service}」服務。客人備註：「${note || '無'}」。請生成一段溫暖的 LINE 課後關心訊息。包含：1.溫馨問候 2.針對服務的3個居家伸展建議(條列式) 3.結語。`;
+    try { const advice = await callGeminiAPI(prompt); setAdviceMap(prev => ({ ...prev, [apptId]: advice })); } catch (e) { setAdviceMap(prev => ({ ...prev, [apptId]: `❌ 產生失敗：${e.message}` })); }
+  };
+
+  const copyAdvice = (apptId) => {
+    const text = adviceMap[apptId]; if (!text) return;
+    const textArea = document.createElement("textarea"); textArea.value = text; document.body.appendChild(textArea); textArea.select();
+    try { document.execCommand('copy'); alert('✅ 已複製！可直接貼上至 LINE 傳給客人'); } catch (err) { } document.body.removeChild(textArea);
+  };
+
+  // ==============================================
+  // 📊 日曆與過濾器資料準備
+  // ==============================================
 
   const advisorFutureSchedules = useMemo(() => {
     if (!scheduleAdvisorId) return [];
@@ -1132,7 +1113,30 @@ const handleDeleteAdvisor = async (id, name) => {
       </div>
     );
   };
+  // ==============================================
+  // 🗓️ 日曆視角計算與準備進入畫面渲染
+  // ==============================================
 
+  const getCalendarDays = () => {
+    const dates = [];
+    const base = new Date(calBaseDate);
+    if (calViewMode === 'day') {
+      dates.push(base);
+    } else {
+      const day = base.getDay();
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(base);
+        d.setDate(base.getDate() - day + i);
+        dates.push(d);
+      }
+    }
+    return dates;
+  };
+  const calendarDays = getCalendarDays();
+
+  // ==============================================
+  // 🎨 畫面渲染開始 (UI Render)
+  // ==============================================
   return (
     <div className="min-h-screen bg-[#192039] p-4 md:p-8 font-sans text-slate-800 selection:bg-[#e3b5a1] selection:text-[#192039] flex flex-col relative">
       
@@ -1172,6 +1176,7 @@ const handleDeleteAdvisor = async (id, name) => {
         </a>
       )}
 
+      {/* ================= 系統全域彈出視窗 (Modals) ================= */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-[#192039]/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl relative">
@@ -1273,7 +1278,9 @@ const handleDeleteAdvisor = async (id, name) => {
         </div>
       )}
 
+      {/* ================= 主要頁面架構開始 ================= */}
       <div className="max-w-7xl mx-auto space-y-6 w-full flex-1">
+        
         <header className="flex flex-col items-center justify-center gap-4 text-center">
           <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-full p-[3px] bg-gradient-to-b from-[#e3b5a1]/50 to-[#9aa486]/50 shadow-xl flex items-center justify-center">
             <div className="w-full h-full rounded-full overflow-hidden bg-[#12182c] flex items-center justify-center p-1.5"><img src="/logo.png" alt="智理運動恢復" className="w-[85%] h-[85%] object-contain" onError={(e) => { e.target.style.display = 'none'; }} /></div>
@@ -1282,7 +1289,8 @@ const handleDeleteAdvisor = async (id, name) => {
           <p className="text-xs md:text-sm tracking-[0.4em] font-semibold text-[#e3b5a1] uppercase">Smart Recovery</p>
         </header>
 
-{!currentUser ? (
+        {/* ================= 顧客前台區塊 ================= */}
+        {!currentUser ? (
           <div className="max-w-2xl mx-auto space-y-6">
             <div className="flex bg-[#12182c] p-1.5 rounded-2xl max-w-sm mx-auto mb-8 border border-white/10">
               <button onClick={() => setAppMode('booking')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${appMode === 'booking' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-white/50 hover:text-white/80'}`}>線上預約</button>
@@ -1450,7 +1458,7 @@ const handleDeleteAdvisor = async (id, name) => {
               </div>
             )}
           </div>
-          ) : (
+        ) : (
           <div className="bg-white/95 rounded-3xl shadow-xl flex flex-col md:flex-row min-h-[750px] overflow-hidden">
             
             {/* ================= 左側 Sidebar 側邊欄 ================= */}
@@ -1466,23 +1474,20 @@ const handleDeleteAdvisor = async (id, name) => {
               {/* 垂直導覽選單 */}
               <div className="space-y-2 flex-1">
                 <button onClick={() => setAdminTab('appointments')} className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors ${adminTab === 'appointments' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:bg-white/5'}`}><Clipboard size={18} /> 預約戰情室</button>
-                
                 <button onClick={() => setAdminTab('calendar')} className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors ${adminTab === 'calendar' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:bg-white/5'}`}><Calendar size={18} /> 日曆檢視模式</button>
-                
-                <button onClick={() => setAdminTab('schedule')} className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors ${adminTab === 'schedule' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:bg-white/5'}`}><Calendar size={18} /> 排班系統</button>
+                <button onClick={() => setAdminTab('schedule')} className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors ${adminTab === 'schedule' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:bg-white/5'}`}><Clock size={18} /> 排班系統</button>
                 
                 {currentUser.role === 'admin' && (
                   <>
                     <button onClick={() => setAdminTab('analytics')} className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors ${adminTab === 'analytics' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:bg-white/5'}`}><BarChart size={18} /> 營業營收</button>
                     <button onClick={() => setAdminTab('team')} className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors ${adminTab === 'team' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:bg-white/5'}`}><UserPlus size={18} /> 團隊管理</button>
-                    <button onClick={() => setAdminTab('prices')} className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors ${adminTab === 'prices' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:bg-white/5'}`}><ShoppingBag size={18} /> 商品設定</button>
+                    <button onClick={() => setAdminTab('prices')} className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors ${adminTab === 'prices' ? 'bg-[#e3b5a1] text-[#192039]' : 'text-slate-300 hover:bg-white/5'}`}><Package size={18} /> 商業邏輯設定</button>
                     <button onClick={() => setAdminTab('blacklist')} className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors ${adminTab === 'blacklist' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-300 hover:bg-white/5 hover:text-rose-400'}`}><ShieldAlert size={18} /> 黑名單管理</button>
                   </>
                 )}
 
                 <a 
-                  href="https://smart-recovery-chart.vercel.app/"  //====== 病歷系統網址 ========//
-                
+                  href="https://smart-recovery-chart.vercel.app/" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="w-full text-left px-4 py-3 mt-2 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors bg-[#151b2b] text-[#e2bba9] hover:bg-[#202942] border border-[#e2bba9]/30 shadow-sm"
@@ -1500,196 +1505,187 @@ const handleDeleteAdvisor = async (id, name) => {
               </div>
             </div>
 
-            {/* ================= 右側內容區 ================= */}
-            <div className="flex-1 bg-slate-50 relative overflow-y-auto h-[80vh] md:h-auto">
+            {/* ================= 右側內容區 (主控台) ================= */}
+            <div className="flex-1 bg-slate-50 relative overflow-y-auto h-[80vh] md:h-auto custom-scrollbar">
 
-            {adminTab === 'prices' && currentUser?.role === 'admin' && (
-              <div className="space-y-6 animate-in fade-in p-6">
-                <div className="flex justify-between items-center border-b pb-4">
-                  <h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><ShoppingBag className="text-[#9aa486]" /> 商品與價目表設定</h3>
-                </div>
-                {/* 👇==== 新增：儲值合約套票管理區塊 ====👇 */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border mt-6 border-emerald-200">
-                  <h4 className="text-lg font-bold text-slate-800 mb-2 border-b pb-3 flex items-center gap-2">
-                    <DollarSign className="text-emerald-500" /> 儲值合約套票管理
-                  </h4>
-                  <p className="text-sm text-slate-500 mb-6">此處設定的方案會直接連動至「前台顧問端」的套票儲值選單。</p>
-
-                  <div className="overflow-x-auto mb-6">
-                    <table className="w-full text-left text-sm">
-                      <thead>
-                        <tr className="border-b text-slate-500 bg-slate-50">
-                          <th className="py-3 px-4 font-bold rounded-tl-xl">方案名稱</th>
-                          <th className="py-3 px-4 font-bold">增加堂數</th>
-                          <th className="py-3 px-4 font-bold">預設價格 (NT$)</th>
-                          <th className="py-3 px-4 font-bold text-right rounded-tr-xl">操作</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {depositPlans.length === 0 && (
-                          <tr><td colSpan="4" className="text-center py-6 text-slate-400">目前尚無儲值方案</td></tr>
-                        )}
-                        {depositPlans.map(plan => {
-                          const isEditing = editingPlanId === plan.id;
-                          return (
-                            <tr key={plan.id} className="border-b border-slate-100 hover:bg-slate-50">
-                              <td className="py-3 px-4 font-bold text-slate-700">
-                                {isEditing ? <input type="text" value={editPlanForm.label} onChange={e => setEditPlanForm({...editPlanForm, label: e.target.value})} className="p-2 border rounded outline-none" /> : plan.label}
-                              </td>
-                              <td className="py-3 px-4 font-bold text-emerald-600">
-                                {isEditing ? <input type="number" value={editPlanForm.sessions} onChange={e => setEditPlanForm({...editPlanForm, sessions: e.target.value})} className="w-20 p-2 border rounded outline-none" /> : `+ ${plan.sessions} 堂`}
-                              </td>
-                              <td className="py-3 px-4 font-bold text-slate-700">
-                                {isEditing ? <input type="number" value={editPlanForm.defaultPrice} onChange={e => setEditPlanForm({...editPlanForm, defaultPrice: e.target.value})} className="w-24 p-2 border rounded outline-none" /> : `$ ${plan.defaultPrice.toLocaleString()}`}
-                              </td>
-                              <td className="py-3 px-4 text-right">
-                                {isEditing ? (
-                                  <div className="flex justify-end gap-2">
-                                    <button onClick={() => setEditingPlanId(null)} className="text-slate-400 hover:text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold">取消</button>
-                                    <button onClick={() => handleSaveEditPlan(plan.id)} className="text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-lg text-xs font-bold">儲存</button>
-                                  </div>
-                                ) : (
-                                  <div className="flex justify-end gap-2">
-                                    <button onClick={() => { setEditingPlanId(plan.id); setEditPlanForm(plan); }} className="text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 p-2 rounded-lg transition-colors"><Edit2 size={16} /></button>
-                                    <button onClick={() => handleDeletePlan(plan.id, plan.label)} className="text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 p-2 rounded-lg transition-colors"><Trash size={16} /></button>
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+              {/* ================= 模組 2：進階商品與商業邏輯設定 ================= */}
+              {adminTab === 'prices' && currentUser?.role === 'admin' && (
+                <div className="bg-white rounded-[24px] p-6 md:p-8 shadow-sm m-6 animate-in fade-in">
+                  <div className="flex items-center gap-3 mb-8 border-b border-slate-100 pb-5">
+                    <div className="bg-[#192039] p-2 rounded-xl"><Package className="text-[#e3b5a1]" size={24} /></div>
+                    <h2 className="text-xl font-black text-[#192039]">商品與商業邏輯設定 (雲端連動)</h2>
                   </div>
 
-                  <div className="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100">
-                    <h4 className="font-bold text-emerald-800 mb-3 flex items-center gap-2"><PlusCircle size={18} /> 新增儲值方案</h4>
-                    <form onSubmit={handleAddPlan} className="flex flex-col sm:flex-row gap-3">
-                      <input type="text" placeholder="方案名稱 (例: 5堂優化套票)" required value={newPlan.label} onChange={e => setNewPlan({ ...newPlan, label: e.target.value })} className="flex-1 p-3 bg-white border border-emerald-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400" />
-                      <input type="number" placeholder="增加堂數 (例: 5)" required value={newPlan.sessions} onChange={e => setNewPlan({ ...newPlan, sessions: e.target.value })} className="w-full sm:w-32 p-3 bg-white border border-emerald-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400" />
-                      <input type="number" placeholder="價格 (NT$)" required value={newPlan.defaultPrice} onChange={e => setNewPlan({ ...newPlan, defaultPrice: e.target.value })} className="w-full sm:w-36 p-3 bg-white border border-emerald-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400" />
-                      <button type="submit" className="bg-emerald-600 text-white font-bold px-6 py-3 rounded-lg shadow-sm hover:bg-emerald-700 transition-colors whitespace-nowrap">新增方案</button>
-                    </form>
-                  </div>
-                </div>
-                {/* 👆====================================👆 */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border">
-                  <p className="text-sm text-slate-500 mb-6">在此設定的商品與價格將會直接連動並顯示在「💰 收銀機」介面中，方便顧問快速點選。</p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                      <h4 className="font-bold text-slate-800 mb-3 border-b pb-2 flex items-center gap-2">主打基礎服務</h4>
-                      <ul className="space-y-2 mb-4">
-                        {priceList.services?.map((item, index) => (
-                          <li key={index} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            <span className="font-bold text-[14px] text-slate-700">{item.name}</span>
-                            <div className="flex items-center gap-3">
-                              <span className="text-[#9aa486] font-bold">${item.price}</span>
-                              <button onClick={() => handleDeleteProduct('services', index)} className="text-rose-400 hover:text-rose-600"><Trash size={14} /></button>
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-10">
+                    
+                    {/* ===== 左側：單次服務與加價購 ===== */}
+                    <div className="flex flex-col h-full bg-slate-50 p-6 rounded-3xl border border-slate-100 shadow-sm">
+                      <h3 className="text-[15px] font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <Zap size={18} className="text-[#9aa486]" /> 單次服務與周邊 (連動收銀機)
+                      </h3>
+                      
+                      <div className="space-y-3 flex-1 mb-6 overflow-y-auto pr-2 max-h-[350px]">
+                        {/* 渲染主打服務 */}
+                        <div className="text-xs font-bold text-slate-400 mb-2">主打基礎服務</div>
+                        {(priceList.services || []).map((item, index) => (
+                          <div key={`s-${index}`} className="flex justify-between items-center bg-white border border-slate-100 p-3.5 rounded-2xl shadow-sm">
+                            <span className="font-bold text-sm text-slate-700">{item.name}</span>
+                            <div className="flex items-center gap-4">
+                              <span className="font-black text-[#9aa486]">${item.price}</span>
+                              <button onClick={() => handleDeleteProduct('services', index)} className="text-rose-300 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
                             </div>
-                          </li>
+                          </div>
                         ))}
-                      </ul>
+                        
+                        {/* 渲染加價購 */}
+                        <div className="text-xs font-bold text-slate-400 mt-4 mb-2">加價購與周邊商品</div>
+                        {(priceList.addons || []).map((item, index) => (
+                          <div key={`a-${index}`} className="flex justify-between items-center bg-white border border-slate-100 p-3.5 rounded-2xl shadow-sm">
+                            <span className="font-bold text-sm text-slate-700">{item.name}</span>
+                            <div className="flex items-center gap-4">
+                              <span className="font-black text-indigo-400">${item.price}</span>
+                              <button onClick={() => handleDeleteProduct('addons', index)} className="text-rose-300 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* 新增區 */}
+                      <form onSubmit={handleAddProduct} className="bg-[#9aa486]/10 border border-[#9aa486]/20 rounded-2xl p-2.5 flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                        <select value={newProduct.type} onChange={e => setNewProduct({ ...newProduct, type: e.target.value })} className="px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#9aa486]/50 shrink-0">
+                          <option value="services">基礎服務</option>
+                          <option value="addons">加價購/周邊</option>
+                        </select>
+                        <input type="text" required placeholder="新增項目名稱..." value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} className="flex-1 min-w-0 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#9aa486]/50" />
+                        <input type="number" required placeholder="$ 價格" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} className="w-24 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#9aa486]/50" />
+                        <button type="submit" className="bg-[#9aa486] hover:bg-[#868f74] text-white p-2.5 rounded-xl transition-colors shadow-sm"><Plus size={18}/></button>
+                      </form>
                     </div>
 
-                    <div>
-                      <h4 className="font-bold text-slate-800 mb-3 border-b pb-2 flex items-center gap-2">加價購與周邊商品</h4>
-                      <ul className="space-y-2 mb-4">
-                        {priceList.addons?.map((item, index) => (
-                          <li key={index} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            <span className="font-bold text-[14px] text-slate-700">{item.name}</span>
-                            <div className="flex items-center gap-3">
-                              <span className="text-indigo-500 font-bold">${item.price}</span>
-                              <button onClick={() => handleDeleteProduct('addons', index)} className="text-rose-400 hover:text-rose-600"><Trash size={14} /></button>
+                    {/* ===== 右側：套票方案區塊 ===== */}
+                    <div className="flex flex-col h-full bg-slate-50 p-6 rounded-3xl border border-slate-100 shadow-sm">
+                      <h3 className="text-[15px] font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <Ticket size={18} className="text-[#e2bba9]" /> 儲值套票方案 (連動前台)
+                      </h3>
+                      <div className="space-y-3 flex-1 mb-6 overflow-y-auto pr-2 max-h-[350px]">
+                        {depositPlans.length === 0 && <p className="text-slate-400 text-sm text-center py-10">尚無套票方案</p>}
+                        {depositPlans.map(plan => (
+                          <div key={plan.id} className="flex justify-between items-center bg-white border border-slate-100 p-3.5 rounded-2xl hover:border-[#192039]/30 transition-colors shadow-sm group">
+                            <span className="font-bold text-sm text-slate-700">{plan.label} <span className="text-[#e2bba9] ml-1">({plan.sessions}堂)</span></span>
+                            <div className="flex items-center gap-4">
+                              <span className="font-black text-[#192039]">${plan.defaultPrice.toLocaleString()}</span>
+                              <button onClick={() => handleDeletePlan(plan.id, plan.label)} className="text-rose-300 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
                             </div>
-                          </li>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
+                      
+                      {/* 新增套票區 */}
+                      <form onSubmit={handleAddPlan} className="bg-[#192039]/5 border border-[#192039]/10 rounded-2xl p-2.5 flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                        <input type="text" required placeholder="方案名稱..." value={newPlan.label} onChange={e => setNewPlan({...newPlan, label: e.target.value})} className="flex-1 min-w-0 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#192039]/30" />
+                        <input type="number" required placeholder="堂數" value={newPlan.sessions} onChange={e => setNewPlan({...newPlan, sessions: e.target.value})} className="w-20 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#192039]/30" title="輸入增加的堂數" />
+                        <input type="number" required placeholder="$ 價格" value={newPlan.defaultPrice} onChange={e => setNewPlan({...newPlan, defaultPrice: e.target.value})} className="w-24 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#192039]/30" />
+                        <button type="submit" className="bg-[#192039] hover:bg-[#232d48] text-[#e3b5a1] p-2.5 rounded-xl transition-colors shadow-sm"><Plus size={18}/></button>
+                      </form>
                     </div>
+
                   </div>
 
-                  <div className="mt-8 bg-slate-50 p-5 rounded-2xl border border-slate-200">
-                    <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><PlusCircle size={18} className="text-[#e3b5a1]" /> 新增商品項目</h4>
-                    <form onSubmit={handleAddProduct} className="flex flex-col sm:flex-row gap-3">
-                      <select value={newProduct.type} onChange={e => setNewProduct({ ...newProduct, type: e.target.value })} className="p-2.5 bg-white border border-slate-300 rounded-lg text-sm outline-none font-bold">
-                        <option value="services">基礎服務</option>
-                        <option value="addons">加價購與周邊</option>
-                      </select>
-                      <input type="text" placeholder="輸入商品名稱" required value={newProduct.name} onChange={e => setNewProduct({ ...newProduct, name: e.target.value })} className="flex-1 p-2.5 bg-white border border-slate-300 rounded-lg text-sm outline-none" />
-                      <input type="number" placeholder="價格 (NT$)" required value={newProduct.price} onChange={e => setNewProduct({ ...newProduct, price: e.target.value })} className="w-32 p-2.5 bg-white border border-slate-300 rounded-lg text-sm outline-none" />
-                      <button type="submit" className="bg-[#192039] text-[#e3b5a1] font-bold px-6 py-2.5 rounded-lg shadow hover:bg-slate-800 transition-colors">新增</button>
-                    </form>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {adminTab === 'blacklist' && (
-              <div className="space-y-6 animate-in fade-in p-6">
-                <div className="flex justify-between items-center border-b pb-4">
-                  <h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><ShieldAlert className="text-rose-500" /> 系統黑名單管理</h3>
-                </div>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border">
-                  <p className="text-sm text-slate-500 mb-4">被列入黑名單的客戶，將無法透過前台系統進行線上預約。您可以在此集中管理這些名單。</p>
-
-                  {blacklistedList.length === 0 ? (
-                    <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-xl border border-dashed">目前系統中沒有任何黑名單客戶。</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {blacklistedList.map((client, idx) => (
-                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-rose-50/50 rounded-xl border border-rose-100 gap-4">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-bold text-slate-800">{client.name}</span>
-                              <span className="text-xs bg-rose-100 text-rose-600 px-2 py-0.5 rounded font-bold">{client.phone}</span>
-                            </div>
-                            <p className="text-sm text-slate-600 mt-2 bg-white p-2 rounded border border-rose-100 inline-block w-full sm:w-auto">
-                              <strong>備註原因：</strong>{client.memo}
-                            </p>
-                          </div>
-                          <div className="flex gap-2 shrink-0">
-                            <button onClick={() => handleOpenHistoryModal(client.phone)} className="text-xs bg-white border border-slate-300 text-slate-600 hover:bg-slate-100 px-3 py-2 rounded-lg font-bold transition-all shadow-sm">
-                              查看歷史紀錄
-                            </button>
-                            <button onClick={() => handleRemoveBlacklist(client.phone, client.memo)} className="text-xs bg-rose-500 text-white hover:bg-rose-600 px-3 py-2 rounded-lg font-bold transition-all shadow-sm">
-                              解除黑名單
-                            </button>
-                          </div>
+                  {/* ===== 底部：抽成與獎金規則 ===== */}
+                  <div className="pt-6 border-t border-slate-200">
+                    <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <span className="w-1.5 h-4 bg-[#192039] rounded-full"></span>
+                      內部抽成與激勵獎金規則 (全自動套用至薪資結算)
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {[
+                        { id: 7, name: '基本勞務抽成', value: '50%' },
+                        { id: 8, name: '月滿40堂抽成', value: '55%' },
+                        { id: 9, name: '指定客/自帶客', value: '60%' },
+                        { id: 10, name: '初評轉單 (5次)', value: '獎金 $500 (現領)' },
+                        { id: 11, name: '初評轉單 (10次)', value: '獎金 $1000 (現領)' },
+                        { id: 12, name: '初評轉單 (20次)', value: '獎金 $2000 (現領)' },
+                        { id: 13, name: '初評轉單折抵', value: '全額免費' }
+                      ].map(rule => (
+                        <div key={rule.id} className="flex justify-between items-center bg-slate-50 border border-slate-100 p-3.5 rounded-xl shadow-sm">
+                          <span className="font-bold text-xs text-slate-500">{rule.name}</span>
+                          <span className="font-black text-[13px] text-[#192039]">{rule.value}</span>
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-{adminTab === 'team' && currentUser?.role === 'admin' && (
-              <div className="space-y-6 animate-in fade-in p-6">
-              <div className="flex justify-between items-center border-b pb-4">
-                <h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><UserPlus className="text-[#9aa486]" /> 顧問與團隊管理</h3>
-                <button onClick={handleToggleAdminVisibility} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border border-slate-300 shadow-sm">
-                 {isAdminHidden ? '👁️ 顯示 admin 帳號' : '🛡️ 隱藏 admin 帳號'}
-                 </button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white p-6 rounded-2xl shadow-sm border md:col-span-1 h-fit">
-                    <h4 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><PlusCircle size={18} /> 新增團隊成員</h4>
-                    <form onSubmit={handleAddAdvisor} className="space-y-4">
-                      <div><label className="block text-xs font-bold text-slate-600 mb-1">登入帳號</label><input type="text" required value={newAdvisor.id} onChange={e => setNewAdvisor({ ...newAdvisor, id: e.target.value.toLowerCase() })} className="w-full p-2.5 bg-slate-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#9aa486]" placeholder="例如: kevin" /></div>
-                      <div><label className="block text-xs font-bold text-slate-600 mb-1">顯示名稱</label><input type="text" required value={newAdvisor.name} onChange={e => setNewAdvisor({ ...newAdvisor, name: e.target.value })} className="w-full p-2.5 bg-slate-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#9aa486]" placeholder="例如: Kevin" /></div>
-                      <div><label className="block text-xs font-bold text-slate-600 mb-1">登入密碼</label><input type="text" required value={newAdvisor.pwd} onChange={e => setNewAdvisor({ ...newAdvisor, pwd: e.target.value })} className="w-full p-2.5 bg-slate-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#9aa486]" placeholder="設定初始密碼" /></div>
-                      <div><label className="block text-xs font-bold text-slate-600 mb-1">系統權限</label>
-                        <select value={newAdvisor.role} onChange={e => setNewAdvisor({ ...newAdvisor, role: e.target.value })} className="w-full p-2.5 bg-slate-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#9aa486]">
-                          <option value="advisor">一般顧問</option><option value="admin">管理員</option>
-                        </select>
-                      </div>
-                      <button type="submit" className="w-full bg-[#192039] text-[#e3b5a1] font-bold py-3 rounded-xl shadow-md mt-2 flex justify-center items-center gap-2 hover:bg-slate-800 transition-colors"><Plus size={16} /> 確認新增</button>
-                    </form>
                   </div>
-                  <div className="bg-white p-6 rounded-2xl shadow-sm border md:col-span-2">
-                    <h4 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><Users size={18} /> 目前團隊帳號名單</h4>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm">
+                </div>
+              )}
+
+              {/* ================= 系統黑名單管理 ================= */}
+              {adminTab === 'blacklist' && currentUser?.role === 'admin' && (
+                <div className="space-y-6 animate-in fade-in p-6">
+                  <div className="flex justify-between items-center border-b pb-4">
+                    <h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><ShieldAlert className="text-rose-500" /> 系統黑名單管理</h3>
+                  </div>
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border">
+                    <p className="text-sm text-slate-500 mb-4">被列入黑名單的客戶，將無法透過前台系統進行線上預約。您可以在此集中管理這些名單。</p>
+
+                    {blacklistedList.length === 0 ? (
+                      <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-xl border border-dashed">目前系統中沒有任何黑名單客戶。</div>
+                    ) : (
+                      <div className="space-y-3">
+                        {blacklistedList.map((client, idx) => (
+                          <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-rose-50/50 rounded-xl border border-rose-100 gap-4">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-bold text-slate-800">{client.name}</span>
+                                <span className="text-xs bg-rose-100 text-rose-600 px-2 py-0.5 rounded font-bold">{client.phone}</span>
+                              </div>
+                              <p className="text-sm text-slate-600 mt-2 bg-white p-2 rounded border border-rose-100 inline-block w-full sm:w-auto">
+                                <strong>備註原因：</strong>{client.memo}
+                              </p>
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                              <button onClick={() => handleOpenHistoryModal(client.phone)} className="text-xs bg-white border border-slate-300 text-slate-600 hover:bg-slate-100 px-3 py-2 rounded-lg font-bold transition-all shadow-sm">
+                                查看歷史紀錄
+                              </button>
+                              <button onClick={() => handleRemoveBlacklist(client.phone, client.memo)} className="text-xs bg-rose-500 text-white hover:bg-rose-600 px-3 py-2 rounded-lg font-bold transition-all shadow-sm">
+                                解除黑名單
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ================= 團隊管理 ================= */}
+              {adminTab === 'team' && currentUser?.role === 'admin' && (
+                <div className="space-y-6 animate-in fade-in p-6">
+                  <div className="flex justify-between items-center border-b pb-4">
+                    <h3 className="text-xl font-bold flex items-center gap-2 text-slate-800"><UserPlus className="text-[#9aa486]" /> 顧問與團隊管理</h3>
+                    <button onClick={handleToggleAdminVisibility} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border border-slate-300 shadow-sm">
+                      {isAdminHidden ? '👁️ 顯示 admin 帳號' : '🛡️ 隱藏 admin 帳號'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* 新增成員表單 */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border md:col-span-1 h-fit">
+                      <h4 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><PlusCircle size={18} /> 新增團隊成員</h4>
+                      <form onSubmit={handleAddAdvisor} className="space-y-4">
+                        <div><label className="block text-xs font-bold text-slate-600 mb-1">登入帳號</label><input type="text" required value={newAdvisor.id} onChange={e => setNewAdvisor({ ...newAdvisor, id: e.target.value.toLowerCase() })} className="w-full p-2.5 bg-slate-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#9aa486]" placeholder="例如: kevin" /></div>
+                        <div><label className="block text-xs font-bold text-slate-600 mb-1">顯示名稱</label><input type="text" required value={newAdvisor.name} onChange={e => setNewAdvisor({ ...newAdvisor, name: e.target.value })} className="w-full p-2.5 bg-slate-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#9aa486]" placeholder="例如: Kevin" /></div>
+                        <div><label className="block text-xs font-bold text-slate-600 mb-1">登入密碼</label><input type="text" required value={newAdvisor.pwd} onChange={e => setNewAdvisor({ ...newAdvisor, pwd: e.target.value })} className="w-full p-2.5 bg-slate-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#9aa486]" placeholder="設定初始密碼" /></div>
+                        <div><label className="block text-xs font-bold text-slate-600 mb-1">系統權限</label>
+                          <select value={newAdvisor.role} onChange={e => setNewAdvisor({ ...newAdvisor, role: e.target.value })} className="w-full p-2.5 bg-slate-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#9aa486]">
+                            <option value="advisor">一般顧問</option><option value="admin">管理員</option>
+                          </select>
+                        </div>
+                        <button type="submit" className="w-full bg-[#192039] text-[#e3b5a1] font-bold py-3 rounded-xl shadow-md mt-2 flex justify-center items-center gap-2 hover:bg-slate-800 transition-colors"><Plus size={16} /> 確認新增</button>
+                      </form>
+                    </div>
+                    {/* 成員列表 */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border md:col-span-2 overflow-x-auto">
+                      <h4 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><Users size={18} /> 目前團隊帳號名單</h4>
+                      <table className="w-full text-left text-sm min-w-[500px]">
                         <thead><tr className="border-b text-slate-500"><th className="pb-3 font-bold pl-2">顯示名稱</th><th className="pb-3 font-bold">帳號</th><th className="pb-3 font-bold">密碼 (點擊修改)</th><th className="pb-3 font-bold">角色</th><th className="pb-3 font-bold text-right pr-2">操作</th></tr></thead>
                         <tbody>
                           {displayTeam.map(m => (
@@ -1714,42 +1710,47 @@ const handleDeleteAdvisor = async (id, name) => {
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {adminTab === 'analytics' && currentUser.role === 'admin' && (
-              <div className="space-y-6 animate-in fade-in p-6">
-                <div className="flex justify-between items-center border-b pb-4"><h3 className="text-xl font-bold flex items-center gap-2"><BarChart className="text-indigo-600" /> 營業營收儀表板</h3></div>
-                <div className="flex gap-4 items-center bg-white p-4 rounded-2xl shadow-sm border">
-                  <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="p-2 border rounded-lg font-bold">
-                    {availableMonths.map(m => <option key={m} value={m}>{m} 月份</option>)}
-                  </select>
-                  <div className="flex gap-2 flex-wrap">
-                    {teamMembers.map(m => (
-                      <button key={m.id} onClick={() => setSelectedAnalyticsAdvisors(prev => prev.includes(m.id) ? prev.filter(x => x !== m.id) : [...prev, m.id])} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border border-transparent ${selectedAnalyticsAdvisors.includes(m.id) ? 'bg-[#192039] text-[#e3b5a1] border-[#192039] shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}>{m.name}</button>
-                    ))}
-                  </div>
-                </div>
-                {analyticsData && (
-                  <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-gradient-to-br from-[#192039] to-[#232d4e] p-5 rounded-2xl shadow-sm border border-[#192039] text-center">
-                        <p className="text-[#e3b5a1] text-xs font-bold mb-1">總預估產值 (NT$)</p><h2 className="text-3xl font-extrabold text-white">${(analyticsData.kpi.totalHours * SESSION_PRICE).toLocaleString()}</h2>
-                      </div>
-                      <div className="bg-white p-5 rounded-2xl shadow-sm border text-center">
-                        <p className="text-slate-500 text-xs font-bold mb-1">總接單數</p><h2 className="text-3xl font-extrabold text-[#192039]">{analyticsData.kpi.total}</h2>
-                      </div>
-                      <div className="bg-blue-50 p-5 rounded-2xl shadow-sm border border-blue-200 text-center">
-                        <p className="text-blue-600 text-xs font-bold mb-1">服務總時數 (hr)</p><h2 className="text-3xl font-extrabold text-[#192039]">{analyticsData.kpi.totalHours}</h2>
-                      </div>
-                      <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 text-center">
-                        <p className="text-amber-600 text-xs font-bold mb-1">新舊客佔比</p><h2 className="text-lg font-extrabold text-amber-700 mt-2">新 {analyticsData.kpi.new} : 舊 {analyticsData.kpi.return}</h2>
-                      </div>
+              {/* ================= 營業營收 (Analytics) ================= */}
+              {adminTab === 'analytics' && currentUser.role === 'admin' && (
+                <div className="space-y-6 animate-in fade-in p-6">
+                  <div className="flex justify-between items-center border-b pb-4"><h3 className="text-xl font-bold flex items-center gap-2"><BarChart className="text-indigo-600" /> 營業營收儀表板</h3></div>
+                  
+                  {/* 控制列 */}
+                  <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center bg-white p-4 rounded-2xl shadow-sm border">
+                    <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="p-2 border rounded-lg font-bold">
+                      {availableMonths.map(m => <option key={m} value={m}>{m} 月份</option>)}
+                    </select>
+                    <div className="flex gap-2 flex-wrap">
+                      {teamMembers.map(m => (
+                        <button key={m.id} onClick={() => setSelectedAnalyticsAdvisors(prev => prev.includes(m.id) ? prev.filter(x => x !== m.id) : [...prev, m.id])} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border border-transparent ${selectedAnalyticsAdvisors.includes(m.id) ? 'bg-[#192039] text-[#e3b5a1] border-[#192039] shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}>{m.name}</button>
+                      ))}
                     </div>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border mt-6">
-                      <h4 className="font-bold flex items-center gap-2 mb-4 text-lg"><Users className="text-blue-500" /> 顧問績效與工時統計表</h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
+                  </div>
+
+                  {analyticsData && (
+                    <>
+                      {/* KPI 區塊 */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-gradient-to-br from-[#192039] to-[#232d4e] p-5 rounded-2xl shadow-sm border border-[#192039] text-center">
+                          <p className="text-[#e3b5a1] text-xs font-bold mb-1">總預估產值 (NT$)</p><h2 className="text-3xl font-extrabold text-white">${(analyticsData.kpi.totalHours * SESSION_PRICE).toLocaleString()}</h2>
+                        </div>
+                        <div className="bg-white p-5 rounded-2xl shadow-sm border text-center">
+                          <p className="text-slate-500 text-xs font-bold mb-1">總接單數</p><h2 className="text-3xl font-extrabold text-[#192039]">{analyticsData.kpi.total}</h2>
+                        </div>
+                        <div className="bg-blue-50 p-5 rounded-2xl shadow-sm border border-blue-200 text-center">
+                          <p className="text-blue-600 text-xs font-bold mb-1">服務總時數 (hr)</p><h2 className="text-3xl font-extrabold text-[#192039]">{analyticsData.kpi.totalHours}</h2>
+                        </div>
+                        <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 text-center">
+                          <p className="text-amber-600 text-xs font-bold mb-1">新舊客佔比</p><h2 className="text-lg font-extrabold text-amber-700 mt-2">新 {analyticsData.kpi.new} : 舊 {analyticsData.kpi.return}</h2>
+                        </div>
+                      </div>
+
+                      {/* 顧問績效表 */}
+                      <div className="bg-white p-6 rounded-2xl shadow-sm border mt-6 overflow-x-auto">
+                        <h4 className="font-bold flex items-center gap-2 mb-4 text-lg"><Users className="text-blue-500" /> 顧問績效與工時統計表</h4>
+                        <table className="w-full text-left text-sm min-w-[500px]">
                           <thead><tr className="border-b text-slate-500"><th className="pb-3 font-bold">顧問名稱</th><th className="pb-3 font-bold text-center">接單數</th><th className="pb-3 font-bold text-center">總工時 (小時)</th><th className="pb-3 font-bold text-right">該顧問貢獻產值 (NT$)</th></tr></thead>
                           <tbody>
                             {teamMembers.map(m => {
@@ -1766,426 +1767,423 @@ const handleDeleteAdvisor = async (id, name) => {
                           </tbody>
                         </table>
                       </div>
+
+                      {/* 交易明細與客群檢視 (摺疊面板) */}
+                      <div className="bg-white p-6 rounded-2xl shadow-sm border mt-6">
+                        <h4 className="font-bold flex items-center gap-2 mb-4 text-lg"><FileText className="text-emerald-500" /> 交易明細與客群檢視 (摺疊面板)</h4>
+                        <p className="text-sm text-slate-500 mb-4">以客人名字為索引。點擊即可展開查看該客人的詳細購買品項，並可修改金額、歸屬顧問或刪除廢單。</p>
+                        
+                        <div className="space-y-3">
+                          {monthlyRevenuesByCustomer.length === 0 ? (
+                            <div className="text-center py-8 text-slate-400 border border-dashed rounded-xl border-slate-200">本月尚無任何交易明細</div>
+                          ) : (
+                            monthlyRevenuesByCustomer.map(([cName, group]) => (
+                              <div key={cName} className="border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:border-[#9aa486] transition-colors">
+                                {/* 摺疊標題區 */}
+                                <div onClick={() => setExpandedRevCustomer(expandedRevCustomer === cName ? null : cName)} className={`flex justify-between items-center p-4 cursor-pointer hover:bg-slate-50 transition-colors ${expandedRevCustomer === cName ? 'bg-slate-50 border-b border-slate-200' : ''}`}>
+                                  <div className="flex items-center gap-3">
+                                    <span className="font-bold text-slate-800 text-[15px]">{cName}</span>
+                                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">共 {group.records.length} 筆</span>
+                                  </div>
+                                  <div className="flex items-center gap-4">
+                                    <span className="font-bold text-emerald-600">${group.total.toLocaleString()}</span>
+                                    <span className="text-slate-400 text-xs font-bold">{expandedRevCustomer === cName ? '▲ 收起' : '▼ 展開'}</span>
+                                  </div>
+                                </div>
+                                
+                                {/* 摺疊內容區 (展開才顯示) */}
+                                {expandedRevCustomer === cName && (
+                                  <div className="p-4 bg-slate-50/80 space-y-3">
+                                    {group.records.map(rec => {
+                                      const advisor = teamMembers.find(m => m.id === rec.advisorId);
+                                      const dateObj = new Date(rec.date);
+                                      const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')} ${String(dateObj.getHours()).padStart(2,'0')}:${String(dateObj.getMinutes()).padStart(2,'0')}`;
+                                      
+                                      return (
+                                        <div key={rec.id} className="bg-white border border-slate-200 p-4 rounded-lg flex flex-col sm:flex-row justify-between gap-4 shadow-sm">
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-2">
+                                              <span className="text-sm font-bold text-slate-700">{dateStr}</span>
+                                              <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-bold">收款: {advisor ? advisor.name : rec.advisorId}</span>
+                                            </div>
+                                            <ul className="text-[13px] text-slate-600 space-y-1 mb-3">
+                                              {rec.items?.map((item, idx) => (
+                                                <li key={idx} className="flex items-center gap-2">
+                                                  <span className="w-1.5 h-1.5 rounded-full bg-[#e3b5a1]"></span>
+                                                  {item.name} x {item.qty} <span className="text-slate-400">(${item.price * item.qty})</span>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                            <div className="text-[11px] text-slate-400 font-bold bg-slate-50 p-1.5 rounded inline-block border border-slate-100">
+                                              原價總額 ${rec.originalPrice} | 結帳折扣 {rec.discount} 折
+                                            </div>
+                                          </div>
+                                          
+                                          <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 border-t sm:border-t-0 sm:border-l border-slate-100 pt-3 sm:pt-0 sm:pl-4 min-w-[120px]">
+                                            <span className="font-extrabold text-xl text-[#192039]">${rec.finalAmount.toLocaleString()}</span>
+                                            <div className="flex gap-2 w-full sm:w-auto">
+                                              <button onClick={() => setEditingRevenue({id: rec.id, finalAmount: rec.finalAmount, advisorId: rec.advisorId, date: rec.date})} className="flex-1 sm:flex-none text-[12px] bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 px-3 py-1.5 rounded-lg font-bold transition-colors">修改</button>
+                                              <button onClick={() => handleDeleteRevenue(rec.id)} className="flex-1 sm:flex-none text-[12px] bg-rose-50 hover:bg-rose-500 text-rose-500 hover:text-white border border-rose-200 hover:border-rose-500 px-3 py-1.5 rounded-lg font-bold transition-colors">刪除</button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              {/* ================= 預約戰情室 (Appointments) ================= */}
+              {adminTab === 'appointments' && (
+                <div className="space-y-4 p-6">
+                  <div className="flex justify-between items-center mb-4 border-b pb-4 gap-4 flex-wrap">
+                    <h3 className="text-lg font-bold flex items-center gap-2"><Clipboard className="text-[#9aa486]" /> 預約戰情室</h3>
+                    <div className="flex bg-slate-200 p-1 rounded-xl">
+                      <button onClick={() => setApptFilter('today')} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold ${apptFilter === 'today' ? 'bg-white shadow' : 'text-slate-500'}`}>今日</button>
+                      <button onClick={() => setApptFilter('upcoming')} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold ${apptFilter === 'upcoming' ? 'bg-white shadow' : 'text-slate-500'}`}>未來</button>
+                      <button onClick={() => setApptFilter('past')} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold ${apptFilter === 'past' ? 'bg-white shadow' : 'text-slate-500'}`}>歷史 (已完成)</button>
+                    </div>
+                  </div>
+                  {displayAppointments.map(appt => (
+                    <div key={appt.id} className="border p-5 bg-white rounded-2xl shadow-sm flex flex-col gap-3 relative overflow-hidden">
+                      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${appt.customerType === '初次預約' ? 'bg-amber-400' : 'bg-[#9aa486]'}`}></div>
+                      <div className="pl-2">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <span className="font-bold text-lg">{appt.name}</span><span className="text-[11px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-600">{appt.customerType}</span>
+                          <span className="bg-[#192039] text-[#e3b5a1] px-2 py-0.5 rounded text-xs font-bold tracking-wider">{appt.date} {appt.exactDisplayTime}</span>
+                        </div>
+                        <div className="text-[13px] font-bold text-slate-500 mb-2">{appt.serviceType} | 顧問: {appt.advisorName}</div>
+                        {customerMemos[appt.phone] && (
+                          <div className="text-xs bg-amber-50 text-amber-700 p-3 rounded-lg border border-amber-200 mb-2 leading-relaxed flex items-start gap-1.5 shadow-sm">
+                            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                            <span><strong className="font-bold">內部備忘錄：</strong>{customerMemos[appt.phone]}</span>
+                          </div>
+                        )}
+                        {apptFilter !== 'past' && (
+                          <button onClick={() => handleQuickCheckout(appt)} className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm w-fit">
+                            <DollarSign size={12} /> 一鍵結帳
+                          </button>
+                        )}
+                        {appt.needs && <div className="text-xs bg-slate-50 p-2.5 rounded border text-slate-600 mb-2 leading-relaxed">預約備註：{appt.needs}</div>}
+
+                        <div className="flex gap-2 border-t border-slate-100 pt-3 mt-3 flex-wrap items-center justify-between">
+                          <div className="flex gap-2">
+                            <a href={`tel:${appt.phone}`} className="text-xs bg-green-50 border border-green-200 text-green-600 hover:bg-green-600 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all"><Phone size={12} /> 撥打</a>
+                            <button onClick={() => handleOpenHistoryModal(appt.phone)} className="text-xs bg-slate-100 border border-slate-300 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all">
+                              <Clipboard size={12} /> 查看歷史 & 備註
+                            </button>
+                            {apptFilter !== 'past' && (
+                              <button onClick={() => handleOpenEditModal(appt)} className="text-xs bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm">
+                                <Edit2 size={12} /> 改期
+                              </button>
+                            )}
+                            {apptFilter !== 'past' && <button onClick={() => handleDelete(appt)} className="text-xs bg-rose-50 border border-rose-200 text-rose-500 hover:bg-rose-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all"><Trash size={12} /> 取消</button>}
+                          </div>
+                          {apptFilter === 'past' && (
+                            <button onClick={() => generatePostSessionAdvice(appt.id, appt.name, appt.serviceType, appt.needs)} className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm">
+                              <Sparkles size={12} /> ✨ 產生課後溫馨建議
+                            </button>
+                          )}
+                        </div>
+                        {adviceMap[appt.id] && (
+                          <div className="mt-3 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl relative group animate-in fade-in">
+                            <p className="text-[13px] text-indigo-900 font-medium whitespace-pre-line leading-relaxed pb-6">{adviceMap[appt.id]}</p>
+                            <button onClick={() => copyAdvice(appt.id)} className="absolute bottom-3 right-3 text-xs bg-white text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded-lg font-bold hover:bg-indigo-50 flex items-center gap-1 shadow-sm transition-all"><Copy size={12} /> 複製訊息</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">📅 預約訂單管理 (本月)</h3>
+                    <div className="space-y-3">
+                      {appointments.filter(appt => appt.date >= `${new Date().toISOString().substring(0, 7)}-01`).length === 0 ? (
+                        <p className="text-slate-500 text-center py-4">本月目前尚無預約記錄</p>
+                      ) : (
+                        appointments.filter(appt => appt.date >= `${new Date().toISOString().substring(0, 7)}-01`).map(appt => (
+                          <div key={appt.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-[#9aa486] transition-colors">
+                            <button onClick={() => handleOpenRebookModal(appt)} className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm"><CalendarPlus size={12} /> 現場預約下次</button>
+                            <div className="mb-3 sm:mb-0 mt-3 sm:mt-0 flex-1 sm:ml-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-bold text-[#192039]">{appt.date}</span>
+                                <span className="text-sm bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium">{Array.isArray(appt.timeSlots) ? appt.timeSlots.join(', ') : appt.timeSlots}</span>
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${appt.status === '已取消' ? 'bg-red-100 text-red-600' : appt.status === '已完成' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>{appt.status || '已預約'}</span>
+                              </div>
+                              <p className="text-sm font-medium text-slate-700">
+                                {appt.name} ({appt.phone}) - <span className="text-[#9aa486]">{appt.serviceType}</span>
+                                <span className="ml-2 text-[11px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-bold">
+                                  指定：{appt.advisorName}
+                                </span>
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleUpdateApptStatus(appt, '已完成')} disabled={appt.status === '已完成' || appt.status === '已取消'} className="px-3 py-1.5 text-sm font-bold rounded-lg bg-[#9aa486] text-white hover:bg-[#868f74] disabled:opacity-50">✓ 完成</button>
+                              <button onClick={() => handleUpdateApptStatus(appt, '已取消')} disabled={appt.status === '已取消'} className="px-3 py-1.5 text-sm font-bold rounded-lg bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50">✕ 取消</button>
+                              {appt.status === '已取消' && (
+                                <button onClick={async () => {
+                                  if (window.confirm(`⚠️ 確定要徹底刪除 ${appt.name} 的這筆廢單嗎？(刪除後無法恢復)`)) {
+                                    try { 
+                                      // 1. 刪除 Firebase 資料
+                                      await deleteDoc(doc(db, "appointments", appt.id)); 
+                                      
+                                      // 2. 同步通知 Google Sheets 與日曆刪除 (加強連動)
+                                      if (typeof WEBHOOK_URL === 'string' && WEBHOOK_URL.startsWith("http")) {
+                                        fetch(WEBHOOK_URL, {
+                                          method: 'POST',
+                                          mode: 'no-cors',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ 
+                                            action: "delete", 
+                                            name: appt.name, 
+                                            date: appt.date 
+                                          })
+                                        });
+                                      }
+                                    } catch (error) { alert("刪除失敗：" + error.message); }
+                                  }
+                                }} className="px-3 py-1.5 text-sm font-bold rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 hover:text-rose-600 transition-colors shadow-sm">🗑️ 刪除</button>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ▼▼▼ Google Calendar 樣式戰情室 ▼▼▼ */}
+              {adminTab === 'calendar' && (
+                <div className="space-y-4 p-4 md:p-6 animate-in fade-in h-full flex flex-col min-h-[750px]">
+                  {/* 頂部工具列 */}
+                  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-200 pb-4">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => setCalBaseDate(new Date())} className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+                        今天
+                      </button>
+                      <div className="flex bg-slate-100 rounded-lg p-1">
+                        <button onClick={() => setCalBaseDate(new Date(calBaseDate.setDate(calBaseDate.getDate() - (calViewMode === 'week' ? 7 : 1))))} className="p-1.5 rounded text-slate-500 hover:bg-white hover:shadow-sm transition-all">&lt;</button>
+                        <button onClick={() => setCalBaseDate(new Date(calBaseDate.setDate(calBaseDate.getDate() + (calViewMode === 'week' ? 7 : 1))))} className="p-1.5 rounded text-slate-500 hover:bg-white hover:shadow-sm transition-all">&gt;</button>
+                      </div>
+                      <h3 className="text-lg font-extrabold text-slate-700 min-w-[150px]">
+                        {calBaseDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                      </h3>
                     </div>
 
-                    {/* ▼▼▼ 新增：以客戶為索引的營收細項與編輯區 ▼▼▼ */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border mt-6">
-                      <h4 className="font-bold flex items-center gap-2 mb-4 text-lg"><FileText className="text-emerald-500" /> 交易明細與客群檢視 (摺疊面板)</h4>
-                      <p className="text-sm text-slate-500 mb-4">以客人名字為索引。點擊即可展開查看該客人的詳細購買品項，並可修改金額、歸屬顧問或刪除廢單。</p>
-                      
-                      <div className="space-y-3">
-                        {monthlyRevenuesByCustomer.length === 0 ? (
-                          <div className="text-center py-8 text-slate-400 border border-dashed rounded-xl border-slate-200">本月尚無任何交易明細</div>
-                        ) : (
-                          monthlyRevenuesByCustomer.map(([cName, group]) => (
-                            <div key={cName} className="border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:border-[#9aa486] transition-colors">
-                              {/* 摺疊標題區 */}
-                              <div onClick={() => setExpandedRevCustomer(expandedRevCustomer === cName ? null : cName)} className={`flex justify-between items-center p-4 cursor-pointer hover:bg-slate-50 transition-colors ${expandedRevCustomer === cName ? 'bg-slate-50 border-b border-slate-200' : ''}`}>
-                                <div className="flex items-center gap-3">
-                                  <span className="font-bold text-slate-800 text-[15px]">{cName}</span>
-                                  <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">共 {group.records.length} 筆</span>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                  <span className="font-bold text-emerald-600">${group.total.toLocaleString()}</span>
-                                  <span className="text-slate-400 text-xs font-bold">{expandedRevCustomer === cName ? '▲ 收起' : '▼ 展開'}</span>
-                                </div>
-                              </div>
-                              
-                              {/* 摺疊內容區 (展開才顯示) */}
-                              {expandedRevCustomer === cName && (
-                                <div className="p-4 bg-slate-50/80 space-y-3">
-                                  {group.records.map(rec => {
-                                    const advisor = teamMembers.find(m => m.id === rec.advisorId);
-                                    // 轉換 ISO 時間為直觀格式
-                                    const dateObj = new Date(rec.date);
-                                    const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')} ${String(dateObj.getHours()).padStart(2,'0')}:${String(dateObj.getMinutes()).padStart(2,'0')}`;
-                                    
-                                    return (
-                                      <div key={rec.id} className="bg-white border border-slate-200 p-4 rounded-lg flex flex-col sm:flex-row justify-between gap-4 shadow-sm">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 mb-2">
-                                            <span className="text-sm font-bold text-slate-700">{dateStr}</span>
-                                            <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-bold">收款: {advisor ? advisor.name : rec.advisorId}</span>
-                                          </div>
-                                          <ul className="text-[13px] text-slate-600 space-y-1 mb-3">
-                                            {rec.items?.map((item, idx) => (
-                                              <li key={idx} className="flex items-center gap-2">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-[#e3b5a1]"></span>
-                                                {item.name} x {item.qty} <span className="text-slate-400">(${item.price * item.qty})</span>
-                                              </li>
-                                            ))}
-                                          </ul>
-                                          <div className="text-[11px] text-slate-400 font-bold bg-slate-50 p-1.5 rounded inline-block border border-slate-100">
-                                            原價總額 ${rec.originalPrice} | 結帳折扣 {rec.discount} 折
-                                          </div>
-                                        </div>
-                                        
-                                        <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 border-t sm:border-t-0 sm:border-l border-slate-100 pt-3 sm:pt-0 sm:pl-4 min-w-[120px]">
-                                          <span className="font-extrabold text-xl text-[#192039]">${rec.finalAmount.toLocaleString()}</span>
-                                          <div className="flex gap-2 w-full sm:w-auto">
-                                            <button onClick={() => setEditingRevenue({id: rec.id, finalAmount: rec.finalAmount, advisorId: rec.advisorId, date: rec.date})} className="flex-1 sm:flex-none text-[12px] bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 px-3 py-1.5 rounded-lg font-bold transition-colors">修改</button>
-                                            <button onClick={() => handleDeleteRevenue(rec.id)} className="flex-1 sm:flex-none text-[12px] bg-rose-50 hover:bg-rose-500 text-rose-500 hover:text-white border border-rose-200 hover:border-rose-500 px-3 py-1.5 rounded-lg font-bold transition-colors">刪除</button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
+                    <div className="flex items-center gap-3 w-full lg:w-auto">
+                      {currentUser?.role === 'admin' && (
+                        <select value={calTargetAdvisor} onChange={(e) => setCalTargetAdvisor(e.target.value)} className="p-2 text-sm font-bold border border-slate-200 rounded-lg outline-none bg-white shadow-sm flex-1 lg:flex-none">
+                          <option value="all">👥 查看全團隊</option>
+                          {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                      )}
+                      <div className="flex bg-slate-100 rounded-lg p-1 shrink-0">
+                        <button onClick={() => setCalViewMode('week')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${calViewMode === 'week' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>週</button>
+                        <button onClick={() => setCalViewMode('day')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${calViewMode === 'day' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>日</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 網格區塊 (時間軸 + 日期欄) */}
+                  <div className="flex-1 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-sm flex custom-scrollbar relative">
+                    
+                    {/* 左側：固定時間軸 */}
+                    <div className="w-16 shrink-0 border-r border-slate-200 bg-slate-50/50 pt-10">
+                      {ALL_TIME_SLOTS.map((slot, i) => (
+                        <div key={i} className="relative border-b border-slate-100 text-right pr-2 text-[10px] font-bold text-slate-400" style={{ height: `${SLOT_HEIGHT}px` }}>
+                          <span className="absolute -top-2.5 right-2 bg-slate-50 px-1">{slot.split('-')[0]}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* 右側：可滾動的日期欄位 */}
+                    <div className="flex-1 flex overflow-x-auto min-w-[600px]">
+                      {calendarDays.map((d, index) => {
+                        const dateStr = d.toISOString().split('T')[0];
+                        const isToday = dateStr === new Date().toISOString().split('T')[0];
+                        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+                        const dayAppts = appointments.filter(a => {
+                          if (a.date !== dateStr || a.status === '已取消') return false;
+                          if (calTargetAdvisor !== 'all' && a.advisorId !== calTargetAdvisor) return false;
+                          return true;
+                        });
+
+                        const nowHour = currentTimeLine.getHours();
+                        const nowMin = currentTimeLine.getMinutes();
+                        const nowTop = ((nowHour - START_HOUR) * 2 + (nowMin / 30)) * SLOT_HEIGHT;
+                        const showNowLine = isToday && nowHour >= START_HOUR && nowHour < 22;
+
+                        return (
+                          <div key={dateStr} className="flex-1 min-w-[120px] border-r border-slate-200 relative">
+                            
+                            {/* 頂部日期標題 */}
+                            <div className={`h-10 border-b border-slate-200 flex flex-col items-center justify-center sticky top-0 bg-white/90 backdrop-blur z-20 ${isToday ? 'text-indigo-600' : 'text-slate-500'}`}>
+                              <span className="text-[10px] font-bold uppercase">{dayNames[d.getDay()]}</span>
+                              <span className={`text-[15px] font-extrabold ${isToday ? 'bg-indigo-600 text-white w-7 h-7 rounded-full flex items-center justify-center' : ''}`}>
+                                {d.getDate()}
+                              </span>
+                            </div>
+
+                            {/* 日曆背景格子 (點擊代客預約) */}
+                            <div className="relative w-full">
+                              {ALL_TIME_SLOTS.map((slot) => {
+                                const isWorking = schedules.find(s => s.date === dateStr && (calTargetAdvisor === 'all' || s.advisorId === calTargetAdvisor))?.slots?.includes(slot);
+                                return (
+                                  <div 
+                                    key={slot} 
+                                    onClick={() => handleEmptySlotClick(dateStr, slot)}
+                                    className={`border-b border-slate-100 cursor-pointer hover:bg-indigo-50 transition-colors ${isWorking ? 'bg-[#9aa486]/5' : ''}`}
+                                    style={{ height: `${SLOT_HEIGHT}px` }} 
+                                  />
+                                );
+                              })}
+
+                              {/* 預約事件方塊 (絕對定位) */}
+                              {dayAppts.map(appt => {
+                                if (!appt.timeSlots || appt.timeSlots.length === 0) return null;
+                                const sortedSlots = [...appt.timeSlots].sort();
+                                const startSlot = sortedSlots[0];
+                                const [startHr, startMin] = startSlot.split('-')[0].split(':');
+                                
+                                const top = ((parseInt(startHr) - START_HOUR) * 2 + (parseInt(startMin) === 30 ? 1 : 0)) * SLOT_HEIGHT;
+                                const height = sortedSlots.length * SLOT_HEIGHT;
+                                const isFirstTime = appt.customerType === '初次預約';
+
+                                return (
+                                  <div 
+                                    key={appt.id} 
+                                    onClick={(e) => { e.stopPropagation(); handleOpenRebookModal(appt); }}
+                                    className={`absolute left-1 right-1 rounded-md p-1.5 text-xs shadow-sm cursor-pointer overflow-hidden border transition-all hover:shadow-md hover:scale-[1.02] ${
+                                      isFirstTime ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-indigo-500 border-indigo-600 text-white'
+                                    }`}
+                                    style={{ top: `${top}px`, height: `${height - 2}px`, zIndex: 10 }}
+                                  >
+                                    <div className="font-bold truncate">{appt.name}</div>
+                                    <div className="opacity-80 text-[10px] truncate">{appt.serviceType}</div>
+                                    {calTargetAdvisor === 'all' && <div className="mt-1 opacity-70 text-[9px] truncate">({appt.advisorName})</div>}
+                                  </div>
+                                );
+                              })}
+
+                              {/* 走時紅線 */}
+                              {showNowLine && (
+                                <div className="absolute left-0 right-0 h-[2px] bg-red-500 z-30 pointer-events-none" style={{ top: `${nowTop}px` }}>
+                                  <div className="absolute -left-1.5 -top-1.5 w-3 h-3 bg-red-500 rounded-full shadow-sm"></div>
                                 </div>
                               )}
                             </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                    {/* ▲▲▲ 新增區塊結束 ▲▲▲ */}
-                  </>
-                )}
-              </div>
-            )}
-               
-            {adminTab === 'appointments' && (
-              <div className="space-y-4 p-6">
-                <div className="flex justify-between items-center mb-4 border-b pb-4 gap-4 flex-wrap">
-                  <h3 className="text-lg font-bold flex items-center gap-2"><Clipboard className="text-[#9aa486]" /> 預約戰情室</h3>
-                  <div className="flex bg-slate-200 p-1 rounded-xl">
-                    <button onClick={() => setApptFilter('today')} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold ${apptFilter === 'today' ? 'bg-white shadow' : 'text-slate-500'}`}>今日</button>
-                    <button onClick={() => setApptFilter('upcoming')} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold ${apptFilter === 'upcoming' ? 'bg-white shadow' : 'text-slate-500'}`}>未來</button>
-                    <button onClick={() => setApptFilter('past')} className={`px-4 py-1.5 rounded-lg text-[13px] font-bold ${apptFilter === 'past' ? 'bg-white shadow' : 'text-slate-500'}`}>歷史 (已完成)</button>
-                  </div>
-                </div>
-                {displayAppointments.map(appt => (
-                  <div key={appt.id} className="border p-5 bg-white rounded-2xl shadow-sm flex flex-col gap-3 relative overflow-hidden">
-                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${appt.customerType === '初次預約' ? 'bg-amber-400' : 'bg-[#9aa486]'}`}></div>
-                    <div className="pl-2">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className="font-bold text-lg">{appt.name}</span><span className="text-[11px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-600">{appt.customerType}</span>
-                        <span className="bg-[#192039] text-[#e3b5a1] px-2 py-0.5 rounded text-xs font-bold tracking-wider">{appt.date} {appt.exactDisplayTime}</span>
-                      </div>
-                      <div className="text-[13px] font-bold text-slate-500 mb-2">{appt.serviceType} | 顧問: {appt.advisorName}</div>
-                      {customerMemos[appt.phone] && (
-                        <div className="text-xs bg-amber-50 text-amber-700 p-3 rounded-lg border border-amber-200 mb-2 leading-relaxed flex items-start gap-1.5 shadow-sm">
-                          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-                          <span><strong className="font-bold">內部備忘錄：</strong>{customerMemos[appt.phone]}</span>
-                        </div>
-                      )}
-                      {apptFilter !== 'past' && (
-                        <button onClick={() => handleQuickCheckout(appt)} className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm w-fit">
-                          <DollarSign size={12} /> 一鍵結帳
-                        </button>
-                      )}
-                      {appt.needs && <div className="text-xs bg-slate-50 p-2.5 rounded border text-slate-600 mb-2 leading-relaxed">預約備註：{appt.needs}</div>}
-
-                      <div className="flex gap-2 border-t border-slate-100 pt-3 mt-3 flex-wrap items-center justify-between">
-                        <div className="flex gap-2">
-                          <a href={`tel:${appt.phone}`} className="text-xs bg-green-50 border border-green-200 text-green-600 hover:bg-green-600 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all"><Phone size={12} /> 撥打</a>
-                          <button onClick={() => handleOpenHistoryModal(appt.phone)} className="text-xs bg-slate-100 border border-slate-300 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all">
-                            <Clipboard size={12} /> 查看歷史 & 備註
-                            {apptFilter !== 'past' && (
-    <button onClick={() => handleOpenEditModal(appt)} className="text-xs bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm">
-      <Edit2 size={12} /> 改期
-    </button>
-  )}
-                          </button>
-                          {apptFilter !== 'past' && <button onClick={() => handleDelete(appt)} className="text-xs bg-rose-50 border border-rose-200 text-rose-500 hover:bg-rose-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all"><Trash size={12} /> 取消</button>}
-                        </div>
-                        {apptFilter === 'past' && (
-                          <button onClick={() => generatePostSessionAdvice(appt.id, appt.name, appt.serviceType, appt.needs)} className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm">
-                            <Sparkles size={12} /> ✨ 產生課後溫馨建議
-                          </button>
-                        )}
-                      </div>
-                      {adviceMap[appt.id] && (
-                        <div className="mt-3 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl relative group animate-in fade-in">
-                          <p className="text-[13px] text-indigo-900 font-medium whitespace-pre-line leading-relaxed pb-6">{adviceMap[appt.id]}</p>
-                          <button onClick={() => copyAdvice(appt.id)} className="absolute bottom-3 right-3 text-xs bg-white text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded-lg font-bold hover:bg-indigo-50 flex items-center gap-1 shadow-sm transition-all"><Copy size={12} /> 複製訊息</button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-6">
-                  <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">📅 預約訂單管理 (本月)</h3>
-                  <div className="space-y-3">
-                    {appointments.filter(appt => appt.date >= `${new Date().toISOString().substring(0, 7)}-01`).length === 0 ? (
-                      <p className="text-slate-500 text-center py-4">本月目前尚無預約記錄</p>
-                    ) : (
-                      appointments.filter(appt => appt.date >= `${new Date().toISOString().substring(0, 7)}-01`).map(appt => (
-                        <div key={appt.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-[#9aa486] transition-colors">
-                          <button onClick={() => handleOpenRebookModal(appt)} className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm"><CalendarPlus size={12} /> 現場預約下次</button>
-                          <div className="mb-3 sm:mb-0 mt-3 sm:mt-0 flex-1 sm:ml-4">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-bold text-[#192039]">{appt.date}</span>
-                              <span className="text-sm bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium">{Array.isArray(appt.timeSlots) ? appt.timeSlots.join(', ') : appt.timeSlots}</span>
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${appt.status === '已取消' ? 'bg-red-100 text-red-600' : appt.status === '已完成' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>{appt.status || '已預約'}</span>
-                            </div>
-                            <p className="text-sm font-medium text-slate-700">
-                              {appt.name} ({appt.phone}) - <span className="text-[#9aa486]">{appt.serviceType}</span>
-                              <span className="ml-2 text-[11px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-bold">
-                                指定：{appt.advisorName}
-                              </span>
-                            </p>
                           </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => handleUpdateApptStatus(appt, '已完成')} disabled={appt.status === '已完成' || appt.status === '已取消'} className="px-3 py-1.5 text-sm font-bold rounded-lg bg-[#9aa486] text-white hover:bg-[#868f74] disabled:opacity-50">✓ 完成</button>
-                            <button onClick={() => handleUpdateApptStatus(appt, '已取消')} disabled={appt.status === '已取消'} className="px-3 py-1.5 text-sm font-bold rounded-lg bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50">✕ 取消</button>
-                            {appt.status === '已取消' && (
-  <button onClick={async () => {
-    if (window.confirm(`⚠️ 確定要徹底刪除 ${appt.name} 的這筆廢單嗎？(刪除後無法恢復)`)) {
-      try { 
-        // 1. 刪除 Firebase 資料
-        await deleteDoc(doc(db, "appointments", appt.id)); 
-        
-        // 2. 同步通知 Google Sheets 與日曆刪除 (加強連動)
-        if (typeof WEBHOOK_URL === 'string' && WEBHOOK_URL.startsWith("http")) {
-          fetch(WEBHOOK_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              action: "delete", 
-              name: appt.name, 
-              date: appt.date 
-            })
-          });
-        }
-      } catch (error) { alert("刪除失敗：" + error.message); }
-    }
-  }} className="px-3 py-1.5 text-sm font-bold rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 hover:text-rose-600 transition-colors shadow-sm">🗑️ 刪除</button>
-)}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ▼▼▼ Google Calendar 樣式戰情室 ▼▼▼ */}
-            {adminTab === 'calendar' && (
-              <div className="space-y-4 p-4 md:p-6 animate-in fade-in h-full flex flex-col min-h-[750px]">
-                {/* 頂部工具列 */}
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-200 pb-4">
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => setCalBaseDate(new Date())} className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
-                      今天
-                    </button>
-                    <div className="flex bg-slate-100 rounded-lg p-1">
-                      <button onClick={() => setCalBaseDate(new Date(calBaseDate.setDate(calBaseDate.getDate() - (calViewMode === 'week' ? 7 : 1))))} className="p-1.5 rounded text-slate-500 hover:bg-white hover:shadow-sm transition-all">&lt;</button>
-                      <button onClick={() => setCalBaseDate(new Date(calBaseDate.setDate(calBaseDate.getDate() + (calViewMode === 'week' ? 7 : 1))))} className="p-1.5 rounded text-slate-500 hover:bg-white hover:shadow-sm transition-all">&gt;</button>
-                    </div>
-                    <h3 className="text-lg font-extrabold text-slate-700 min-w-[150px]">
-                      {calBaseDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                    </h3>
-                  </div>
-
-                  <div className="flex items-center gap-3 w-full lg:w-auto">
-                    {currentUser?.role === 'admin' && (
-                      <select value={calTargetAdvisor} onChange={(e) => setCalTargetAdvisor(e.target.value)} className="p-2 text-sm font-bold border border-slate-200 rounded-lg outline-none bg-white shadow-sm flex-1 lg:flex-none">
-                        <option value="all">👥 查看全團隊</option>
-                        {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                      </select>
-                    )}
-                    <div className="flex bg-slate-100 rounded-lg p-1 shrink-0">
-                      <button onClick={() => setCalViewMode('week')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${calViewMode === 'week' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>週</button>
-                      <button onClick={() => setCalViewMode('day')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${calViewMode === 'day' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>日</button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 網格區塊 (時間軸 + 日期欄) */}
-                <div className="flex-1 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-sm flex custom-scrollbar relative">
-                  
-                  {/* 左側：固定時間軸 */}
-                  <div className="w-16 shrink-0 border-r border-slate-200 bg-slate-50/50 pt-10">
-                    {ALL_TIME_SLOTS.map((slot, i) => (
-                      <div key={i} className="relative border-b border-slate-100 text-right pr-2 text-[10px] font-bold text-slate-400" style={{ height: `${SLOT_HEIGHT}px` }}>
-                        <span className="absolute -top-2.5 right-2 bg-slate-50 px-1">{slot.split('-')[0]}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 右側：可滾動的日期欄位 */}
-                  <div className="flex-1 flex overflow-x-auto min-w-[600px]">
-                    {calendarDays.map((d, index) => {
-                      const dateStr = d.toISOString().split('T')[0];
-                      const isToday = dateStr === new Date().toISOString().split('T')[0];
-                      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-                      const dayAppts = appointments.filter(a => {
-                        if (a.date !== dateStr || a.status === '已取消') return false;
-                        if (calTargetAdvisor !== 'all' && a.advisorId !== calTargetAdvisor) return false;
-                        return true;
-                      });
-
-                      const nowHour = currentTimeLine.getHours();
-                      const nowMin = currentTimeLine.getMinutes();
-                      const nowTop = ((nowHour - START_HOUR) * 2 + (nowMin / 30)) * SLOT_HEIGHT;
-                      const showNowLine = isToday && nowHour >= START_HOUR && nowHour < 22;
-
-                      return (
-                        <div key={dateStr} className="flex-1 min-w-[120px] border-r border-slate-200 relative">
-                          
-                          {/* 頂部日期標題 */}
-                          <div className={`h-10 border-b border-slate-200 flex flex-col items-center justify-center sticky top-0 bg-white/90 backdrop-blur z-20 ${isToday ? 'text-indigo-600' : 'text-slate-500'}`}>
-                            <span className="text-[10px] font-bold uppercase">{dayNames[d.getDay()]}</span>
-                            <span className={`text-[15px] font-extrabold ${isToday ? 'bg-indigo-600 text-white w-7 h-7 rounded-full flex items-center justify-center' : ''}`}>
-                              {d.getDate()}
-                            </span>
-                          </div>
-
-                          {/* 日曆背景格子 (點擊代客預約) */}
-                          <div className="relative w-full">
-                            {ALL_TIME_SLOTS.map((slot) => {
-                              const isWorking = schedules.find(s => s.date === dateStr && (calTargetAdvisor === 'all' || s.advisorId === calTargetAdvisor))?.slots?.includes(slot);
-                              return (
-                                <div 
-                                  key={slot} 
-                                  onClick={() => handleEmptySlotClick(dateStr, slot)}
-                                  className={`border-b border-slate-100 cursor-pointer hover:bg-indigo-50 transition-colors ${isWorking ? 'bg-[#9aa486]/5' : ''}`}
-                                  style={{ height: `${SLOT_HEIGHT}px` }} 
-                                />
-                              );
-                            })}
-
-                            {/* 預約事件方塊 (絕對定位) */}
-                            {dayAppts.map(appt => {
-                              if (!appt.timeSlots || appt.timeSlots.length === 0) return null;
-                              const sortedSlots = [...appt.timeSlots].sort();
-                              const startSlot = sortedSlots[0];
-                              const [startHr, startMin] = startSlot.split('-')[0].split(':');
-                              
-                              const top = ((parseInt(startHr) - START_HOUR) * 2 + (parseInt(startMin) === 30 ? 1 : 0)) * SLOT_HEIGHT;
-                              const height = sortedSlots.length * SLOT_HEIGHT;
-                              const isFirstTime = appt.customerType === '初次預約';
-
-                              return (
-                                <div 
-                                  key={appt.id} 
-                                  onClick={(e) => { e.stopPropagation(); handleOpenRebookModal(appt); }}
-                                  className={`absolute left-1 right-1 rounded-md p-1.5 text-xs shadow-sm cursor-pointer overflow-hidden border transition-all hover:shadow-md hover:scale-[1.02] ${
-                                    isFirstTime ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-indigo-500 border-indigo-600 text-white'
-                                  }`}
-                                  style={{ top: `${top}px`, height: `${height - 2}px`, zIndex: 10 }}
-                                >
-                                  <div className="font-bold truncate">{appt.name}</div>
-                                  <div className="opacity-80 text-[10px] truncate">{appt.serviceType}</div>
-                                  {calTargetAdvisor === 'all' && <div className="mt-1 opacity-70 text-[9px] truncate">({appt.advisorName})</div>}
-                                </div>
-                              );
-                            })}
-
-                            {/* 走時紅線 */}
-                            {showNowLine && (
-                              <div className="absolute left-0 right-0 h-[2px] bg-red-500 z-30 pointer-events-none" style={{ top: `${nowTop}px` }}>
-                                <div className="absolute -left-1.5 -top-1.5 w-3 h-3 bg-red-500 rounded-full shadow-sm"></div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* ▲▲▲ Google Calendar 樣式戰情室結束 ▲▲▲ */}
-
-            {/* ▼▼▼ 原本的排班系統區塊 ▼▼▼ */}
-            {adminTab === 'schedule' && (
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 p-6">
-                <div className="xl:col-span-7 bg-white p-6 rounded-2xl shadow-sm border h-full flex flex-col">
-                  {currentUser.role === 'admin' && (
-                    <div className="mb-6 pb-6 border-b border-slate-100">
-                      <h3 className="text-[15px] font-bold mb-4 flex items-center gap-2 text-slate-800"><Users size={16} className="text-[#9aa486]" /> 顧問前台顯示狀態 (控制排班系統可見度)</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                        {teamMembers.map(m => {
-                          const isActive = activeAdvisors.includes(m.id);
-                          return (
-                            <div key={m.id} className="flex items-center justify-between bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
-                              <span className="text-[13px] font-bold text-slate-700">{m.name}</span>
-                              <button type="button" onClick={() => handleToggleAdvisor(m.id)} className={`relative w-11 h-6 rounded-full transition-colors flex items-center px-0.5 shadow-inner ${isActive ? 'bg-[#9aa486]' : 'bg-slate-300'}`}>
-                                <div className={`w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${isActive ? 'translate-x-5' : 'translate-x-0'}`} />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                    <select value={scheduleAdvisorId} onChange={e => setScheduleAdvisorId(e.target.value)} className="p-3 border border-slate-200 rounded-xl flex-1 font-bold outline-none focus:ring-2 focus:ring-[#e3b5a1]">
-                      {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                    </select>
-                    <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="p-3 border border-slate-200 rounded-xl font-bold outline-none flex-1 sm:flex-none" min={new Date().toISOString().split('T')[0]} />
-                  </div>
-                  {renderTimeSection('早班 (10:00-14:00)', <Sun size={14} />, 10, 14, 'bg-amber-100', 'text-amber-700', 'border-amber-100')}
-                  {renderTimeSection('午班 (14:00-18:00)', <Sun size={14} />, 14, 18, 'bg-orange-100', 'text-orange-700', 'border-orange-100')}
-                  {renderTimeSection('晚班 (18:00-22:00)', <Moon size={14} />, 18, 22, 'bg-indigo-100', 'text-indigo-700', 'border-indigo-100')}
-
-                  <div className="mt-auto border-t border-slate-100 pt-6">
-                    <h4 className="font-bold text-[14px] text-slate-700 mb-3 flex items-center gap-1.5"><Copy size={16} className="text-[#e3b5a1]" /> 快速同步多日排班 (區間與點選)</h4>
-                    <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                      <div className="flex flex-1 gap-2">
-                        <input type="date" value={rangeStartDate} onChange={e => setRangeStartDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-bold focus:ring-2 focus:ring-[#e3b5a1] outline-none w-full" placeholder="開始" />
-                        <input type="date" value={rangeEndDate} onChange={e => setRangeEndDate(e.target.value)} min={rangeStartDate || new Date().toISOString().split('T')[0]} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-bold focus:ring-2 focus:ring-[#e3b5a1] outline-none w-full" placeholder="結束" />
-                      </div>
-                      <button type="button" onClick={handleBatchAddRange} className="bg-[#e3b5a1] hover:bg-[#d6a590] text-[#192039] px-4 py-2 rounded-lg text-[13px] font-bold transition-all flex items-center justify-center gap-1 shadow-sm whitespace-nowrap"><Plus size={14} /> 區間全選</button>
-                    </div>
-                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mb-4">
-                      {next28Days.map(dateStr => {
-                        const { date, weekday } = getDayLabel(dateStr);
-                        const isSelected = additionalDates.includes(dateStr);
-                        const isMainDate = dateStr === scheduleDate;
-                        return (
-                          <button key={dateStr} onClick={() => toggleExtraDate(dateStr)} disabled={isMainDate} className={`py-2 rounded-lg border text-xs flex flex-col items-center transition-all ${isMainDate ? 'bg-slate-100 opacity-50 cursor-not-allowed' : isSelected ? 'bg-[#192039] text-[#e3b5a1] border-[#192039] shadow-md scale-105' : 'bg-slate-50 text-slate-500 hover:border-[#9aa486]'}`}>
-                            <span className="opacity-70 mb-0.5 scale-90">週{weekday}</span><span className="font-bold">{date}</span>
-                          </button>
                         );
                       })}
                     </div>
-                    {additionalDates.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                        <span className="text-[12px] text-slate-500 font-bold w-full flex justify-between items-center mb-1">
-                          <span>已選同步日期 ({additionalDates.length} 天)：</span><button type="button" onClick={() => setAdditionalDates([])} className="text-rose-500 hover:underline">全部清空</button>
-                        </span>
-                        {additionalDates.map(d => (
-                          <span key={d} className="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-[12px] font-bold flex items-center gap-1.5 shadow-sm">
-                            {d} <button onClick={() => setAdditionalDates(additionalDates.filter(x => x !== d))} className="text-rose-400 hover:text-rose-600">✕</button>
-                          </span>
-                        ))}
+                  </div>
+                </div>
+              )}
+              {/* ▲▲▲ Google Calendar 樣式戰情室結束 ▲▲▲ */}
+
+              {/* ▼▼▼ 排班系統區塊 ▼▼▼ */}
+              {adminTab === 'schedule' && (
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 p-6">
+                  <div className="xl:col-span-7 bg-white p-6 rounded-2xl shadow-sm border h-full flex flex-col">
+                    {currentUser.role === 'admin' && (
+                      <div className="mb-6 pb-6 border-b border-slate-100">
+                        <h3 className="text-[15px] font-bold mb-4 flex items-center gap-2 text-slate-800"><Users size={16} className="text-[#9aa486]" /> 顧問前台顯示狀態 (控制排班系統可見度)</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                          {teamMembers.map(m => {
+                            const isActive = activeAdvisors.includes(m.id);
+                            return (
+                              <div key={m.id} className="flex items-center justify-between bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
+                                <span className="text-[13px] font-bold text-slate-700">{m.name}</span>
+                                <button type="button" onClick={() => handleToggleAdvisor(m.id)} className={`relative w-11 h-6 rounded-full transition-colors flex items-center px-0.5 shadow-inner ${isActive ? 'bg-[#9aa486]' : 'bg-slate-300'}`}>
+                                  <div className={`w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${isActive ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
-                    <button onClick={handleSaveSchedule} disabled={isSavingSchedule} className="w-full bg-[#9aa486] hover:bg-[#868f74] text-white font-bold py-4 rounded-xl transition-all shadow-md tracking-wider flex justify-center items-center gap-2">
-                      <CheckCircle size={18} /> 儲存這 {1 + additionalDates.length} 天的排班
-                    </button>
-                  </div>
-                </div>
-                <div className="xl:col-span-5 bg-slate-100/80 rounded-2xl border border-slate-200 p-5 shadow-inner flex flex-col h-[750px]">
-                  <div className="flex items-center gap-2 mb-5 border-b border-slate-200 pb-4">
-                    <List size={18} className="text-[#8e6856]" /><h3 className="text-[16px] font-bold text-slate-800">班表總覽 ({teamMembers.find(m => m.id === scheduleAdvisorId)?.name})</h3>
-                    <span className="ml-auto text-[11px] bg-slate-200 text-slate-600 px-2 py-1 rounded-md font-bold">未來有 {advisorFutureSchedules.length} 天排班</span>
-                  </div>
-                  <div className="flex-1 overflow-y-auto pr-2 space-y-3">
-                    {advisorFutureSchedules.length === 0 ? (
-                      <div className="text-center text-slate-400 py-32 flex flex-col items-center"><Calendar size={48} className="opacity-20 mb-4" /><p className="font-medium text-[13px]">目前尚無未來的排班</p></div>
-                    ) : (
-                      advisorFutureSchedules.map(sched => (
-                        <div key={sched.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-[#e3b5a1] transition-all relative overflow-hidden">
-                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#9aa486]"></div>
-                          <div className="pl-2">
-                            <p className="font-bold text-[#192039] text-[14px] mb-1">{sched.date}</p>
-                            <p className="text-[11px] text-slate-500 font-medium leading-relaxed max-w-[200px]">{formatTimeSlots(sched.slots)}</p>
-                          </div>
-                          <button onClick={() => handleDeleteFullDay(sched.id, sched.date)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors border border-transparent hover:border-rose-200 shrink-0 shadow-sm" title="刪除這天的班表"><Trash size={14} /></button>
+                    <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                      <select value={scheduleAdvisorId} onChange={e => setScheduleAdvisorId(e.target.value)} className="p-3 border border-slate-200 rounded-xl flex-1 font-bold outline-none focus:ring-2 focus:ring-[#e3b5a1]">
+                        {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </select>
+                      <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="p-3 border border-slate-200 rounded-xl font-bold outline-none flex-1 sm:flex-none" min={new Date().toISOString().split('T')[0]} />
+                    </div>
+                    {renderTimeSection('早班 (10:00-14:00)', <Sun size={14} />, 10, 14, 'bg-amber-100', 'text-amber-700', 'border-amber-100')}
+                    {renderTimeSection('午班 (14:00-18:00)', <Sun size={14} />, 14, 18, 'bg-orange-100', 'text-orange-700', 'border-orange-100')}
+                    {renderTimeSection('晚班 (18:00-22:00)', <Moon size={14} />, 18, 22, 'bg-indigo-100', 'text-indigo-700', 'border-indigo-100')}
+
+                    <div className="mt-auto border-t border-slate-100 pt-6">
+                      <h4 className="font-bold text-[14px] text-slate-700 mb-3 flex items-center gap-1.5"><Copy size={16} className="text-[#e3b5a1]" /> 快速同步多日排班 (區間與點選)</h4>
+                      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                        <div className="flex flex-1 gap-2">
+                          <input type="date" value={rangeStartDate} onChange={e => setRangeStartDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-bold focus:ring-2 focus:ring-[#e3b5a1] outline-none w-full" placeholder="開始" />
+                          <input type="date" value={rangeEndDate} onChange={e => setRangeEndDate(e.target.value)} min={rangeStartDate || new Date().toISOString().split('T')[0]} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-bold focus:ring-2 focus:ring-[#e3b5a1] outline-none w-full" placeholder="結束" />
                         </div>
-                      ))
-                    )}
+                        <button type="button" onClick={handleBatchAddRange} className="bg-[#e3b5a1] hover:bg-[#d6a590] text-[#192039] px-4 py-2 rounded-lg text-[13px] font-bold transition-all flex items-center justify-center gap-1 shadow-sm whitespace-nowrap"><Plus size={14} /> 區間全選</button>
+                      </div>
+                      <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mb-4">
+                        {next28Days.map(dateStr => {
+                          const { date, weekday } = getDayLabel(dateStr);
+                          const isSelected = additionalDates.includes(dateStr);
+                          const isMainDate = dateStr === scheduleDate;
+                          return (
+                            <button key={dateStr} onClick={() => toggleExtraDate(dateStr)} disabled={isMainDate} className={`py-2 rounded-lg border text-xs flex flex-col items-center transition-all ${isMainDate ? 'bg-slate-100 opacity-50 cursor-not-allowed' : isSelected ? 'bg-[#192039] text-[#e3b5a1] border-[#192039] shadow-md scale-105' : 'bg-slate-50 text-slate-500 hover:border-[#9aa486]'}`}>
+                              <span className="opacity-70 mb-0.5 scale-90">週{weekday}</span><span className="font-bold">{date}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {additionalDates.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                          <span className="text-[12px] text-slate-500 font-bold w-full flex justify-between items-center mb-1">
+                            <span>已選同步日期 ({additionalDates.length} 天)：</span><button type="button" onClick={() => setAdditionalDates([])} className="text-rose-500 hover:underline">全部清空</button>
+                          </span>
+                          {additionalDates.map(d => (
+                            <span key={d} className="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-[12px] font-bold flex items-center gap-1.5 shadow-sm">
+                              {d} <button onClick={() => setAdditionalDates(additionalDates.filter(x => x !== d))} className="text-rose-400 hover:text-rose-600">✕</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <button onClick={handleSaveSchedule} disabled={isSavingSchedule} className="w-full bg-[#9aa486] hover:bg-[#868f74] text-white font-bold py-4 rounded-xl transition-all shadow-md tracking-wider flex justify-center items-center gap-2">
+                        <CheckCircle size={18} /> 儲存這 {1 + additionalDates.length} 天的排班
+                      </button>
+                    </div>
+                  </div>
+                  <div className="xl:col-span-5 bg-slate-100/80 rounded-2xl border border-slate-200 p-5 shadow-inner flex flex-col h-[750px]">
+                    <div className="flex items-center gap-2 mb-5 border-b border-slate-200 pb-4">
+                      <List size={18} className="text-[#8e6856]" /><h3 className="text-[16px] font-bold text-slate-800">班表總覽 ({teamMembers.find(m => m.id === scheduleAdvisorId)?.name})</h3>
+                      <span className="ml-auto text-[11px] bg-slate-200 text-slate-600 px-2 py-1 rounded-md font-bold">未來有 {advisorFutureSchedules.length} 天排班</span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+                      {advisorFutureSchedules.length === 0 ? (
+                        <div className="text-center text-slate-400 py-32 flex flex-col items-center"><Calendar size={48} className="opacity-20 mb-4" /><p className="font-medium text-[13px]">目前尚無未來的排班</p></div>
+                      ) : (
+                        advisorFutureSchedules.map(sched => (
+                          <div key={sched.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-[#e3b5a1] transition-all relative overflow-hidden">
+                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#9aa486]"></div>
+                            <div className="pl-2">
+                              <p className="font-bold text-[#192039] text-[14px] mb-1">{sched.date}</p>
+                              <p className="text-[11px] text-slate-500 font-medium leading-relaxed max-w-[200px]">{formatTimeSlots(sched.slots)}</p>
+                            </div>
+                            <button onClick={() => handleDeleteFullDay(sched.id, sched.date)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors border border-transparent hover:border-rose-200 shrink-0 shadow-sm" title="刪除這天的班表"><Trash size={14} /></button>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
             </div> 
           </div>
         )}
@@ -2201,7 +2199,7 @@ const handleDeleteAdvisor = async (id, name) => {
         <BrandFooter />
       </div>
 
-{/* 修改營收紀錄的彈出視窗 */}
+      {/* ================= 全域彈出視窗：修改營收明細 ================= */}
       {editingRevenue && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] flex justify-center items-center p-4">
           <div className="bg-white p-6 md:p-8 rounded-3xl w-full max-w-sm shadow-2xl relative animate-in fade-in zoom-in-95">
@@ -2233,6 +2231,7 @@ const handleDeleteAdvisor = async (id, name) => {
         </div>
       )}
 
+      {/* ================= 全域彈出視窗：POS 收銀機 ================= */}
       {showPOS && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[200] flex justify-center items-center p-4">
           <div className="bg-white p-6 md:p-8 rounded-2xl w-full max-w-4xl shadow-2xl relative max-h-[95vh] overflow-y-auto">
@@ -2325,55 +2324,31 @@ const handleDeleteAdvisor = async (id, name) => {
           </div>
         </div>
       )}
-{showRebookModal && (
+
+      {/* ================= 全域彈出視窗：內部代客預約 ================= */}
+      {showRebookModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
           <div className="bg-[#1E293B] text-white p-6 rounded-2xl w-full max-w-md shadow-2xl relative">
-            
-            {/* 關閉按鈕 */}
-            <button 
-              onClick={() => setShowRebookModal(false)} 
-              className="absolute top-4 right-4 text-slate-400 hover:text-white"
-            >
-              ✕
-            </button>
-            
-            {/* 標題 */}
+            <button onClick={() => setShowRebookModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
             <h2 className="text-xl font-bold mb-4 border-b border-gray-600 pb-4 flex items-center gap-2">
               <CalendarPlus className="text-[#9aa486]" /> 內部代客預約
             </h2>
             
-            {/* 表單內容 */}
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm mb-1.5 text-slate-300">客人姓名 *</label>
-                  <input 
-                    type="text" 
-                    className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" 
-                    value={rebookCustomer.name} 
-                    onChange={(e) => setRebookCustomer({...rebookCustomer, name: e.target.value})} 
-                    placeholder="例如: 王大明" 
-                  />
+                  <input type="text" className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookCustomer.name} onChange={(e) => setRebookCustomer({...rebookCustomer, name: e.target.value})} placeholder="例如: 王大明" />
                 </div>
                 <div>
                   <label className="block text-sm mb-1.5 text-slate-300">聯絡電話</label>
-                  <input 
-                    type="text" 
-                    className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" 
-                    value={rebookCustomer.phone} 
-                    onChange={(e) => setRebookCustomer({...rebookCustomer, phone: e.target.value})} 
-                    placeholder="09XX... 或 LINE" 
-                  />
+                  <input type="text" className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookCustomer.phone} onChange={(e) => setRebookCustomer({...rebookCustomer, phone: e.target.value})} placeholder="09XX... 或 LINE" />
                 </div>
               </div>
               
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">指定顧問 (已為您帶入)</label>
-                <select 
-                  className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" 
-                  value={rebookFormData.consultant} 
-                  onChange={(e) => setRebookFormData({ ...rebookFormData, consultant: e.target.value, time: "" })}
-                >
+                <select className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.consultant} onChange={(e) => setRebookFormData({ ...rebookFormData, consultant: e.target.value, time: "" })}>
                   <option value="">請選擇顧問</option>
                   {teamMembers.map(m => (
                     <option key={m.id} value={m.id}>{m.name}</option>
@@ -2383,13 +2358,7 @@ const handleDeleteAdvisor = async (id, name) => {
               
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">選擇日期</label>
-                <input 
-                  type="date" 
-                  min={new Date().toISOString().split('T')[0]} 
-                  className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" 
-                  value={rebookFormData.date} 
-                  onChange={(e) => setRebookFormData({ ...rebookFormData, date: e.target.value, time: "" })} 
-                />
+                <input type="date" min={new Date().toISOString().split('T')[0]} className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.date} onChange={(e) => setRebookFormData({ ...rebookFormData, date: e.target.value, time: "" })} />
               </div>
               
               <div>
@@ -2403,11 +2372,7 @@ const handleDeleteAdvisor = async (id, name) => {
                     該顧問此日無空檔或未排班
                   </div>
                 ) : (
-                  <select 
-                    className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" 
-                    value={rebookFormData.time} 
-                    onChange={(e) => setRebookFormData({...rebookFormData, time: e.target.value})}
-                  >
+                  <select className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.time} onChange={(e) => setRebookFormData({...rebookFormData, time: e.target.value})}>
                     <option value="">請選擇時段</option>
                     {rebookAvailableSlots.map(slot => (
                       <option key={slot} value={slot}>{slot}</option>
@@ -2418,11 +2383,7 @@ const handleDeleteAdvisor = async (id, name) => {
               
               <div>
                 <label className="block text-sm mb-1.5 text-slate-300">預約項目 (已為您帶入上次項目)</label>
-                <select 
-                  className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" 
-                  value={rebookFormData.service} 
-                  onChange={(e) => setRebookFormData({...rebookFormData, service: e.target.value})}
-                >
+                <select className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-[#9aa486] border border-gray-600" value={rebookFormData.service} onChange={(e) => setRebookFormData({...rebookFormData, service: e.target.value})}>
                   <option value="">請選擇項目</option>
                   {serviceTypes.map(type => (
                     <option key={type} value={type}>{type}</option>
@@ -2431,14 +2392,8 @@ const handleDeleteAdvisor = async (id, name) => {
               </div>
             </div>
             
-            {/* 按鈕區塊 */}
             <div className="mt-8 flex justify-end space-x-3">
-              <button 
-                className="px-4 py-2.5 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors text-sm font-bold" 
-                onClick={() => setShowRebookModal(false)}
-              >
-                取消
-              </button>
+              <button className="px-4 py-2.5 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors text-sm font-bold" onClick={() => setShowRebookModal(false)}>取消</button>
               <button 
                 className="px-6 py-2.5 bg-[#9aa486] rounded-lg hover:bg-[#868f74] text-[#192039] font-bold transition-colors shadow-lg" 
                 onClick={async () => {
@@ -2469,24 +2424,16 @@ const handleDeleteAdvisor = async (id, name) => {
                     
                     if (typeof WEBHOOK_URL === 'string' && WEBHOOK_URL.startsWith("http")) {
                       fetch(WEBHOOK_URL, {
-                        method: 'POST', 
-                        mode: 'no-cors', 
-                        headers: { 'Content-Type': 'application/json' },
+                        method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
-                          action: "new", 
-                          name: rebookCustomer.name, 
-                          date: rebookFormData.date, 
-                          time: rebookFormData.time, 
-                          service: `[舊客複診] ${rebookFormData.service} (指定：${finalAdvisorName})`, 
-                          phone: rebookCustomer.phone, 
-                          needs: "現場直接預約下次" 
+                          action: "new", name: rebookCustomer.name, date: rebookFormData.date, time: rebookFormData.time, 
+                          service: `[舊客複診] ${rebookFormData.service} (指定：${finalAdvisorName})`, phone: rebookCustomer.phone, needs: "現場直接預約下次" 
                         })
                       });
                     }
                     
                     alert("✅ 現場預約大成功！資料已同步至戰情室與 LINE。"); 
                     setShowRebookModal(false); 
-
                   } catch (error) { 
                     alert("預約失敗，請稍後再試：" + error.message); 
                   }
@@ -2499,9 +2446,7 @@ const handleDeleteAdvisor = async (id, name) => {
         </div>
       )}
 
-      {/* ============================================== */}
-      {/* 👇 修改預約日期/時間的彈出視窗 (獨立在最外層) 👇    */}
-      {/* ============================================== */}
+      {/* ================= 全域彈出視窗：更改客戶預約時間 (改期) ================= */}
       {editingAppt && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[300] p-4">
           <div className="bg-[#1E293B] text-white p-6 rounded-2xl w-full max-w-md shadow-2xl relative animate-in zoom-in-95">
@@ -2510,7 +2455,6 @@ const handleDeleteAdvisor = async (id, name) => {
               <Edit2 size={20} /> 更改客戶預約時間
             </h2>
 
-            {/* 原始資訊提示 */}
             <div className="bg-gray-800 p-3 rounded-lg border border-gray-600 mb-5">
               <p className="text-sm text-gray-400 mb-1">正在為 <span className="text-white font-bold">{editingAppt.name}</span> 修改時間</p>
               <p className="text-sm font-bold text-rose-400 line-through">
@@ -2522,21 +2466,11 @@ const handleDeleteAdvisor = async (id, name) => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm mb-1.5 text-slate-300">選擇新日期</label>
-                  <input 
-                    type="date" 
-                    min={new Date().toISOString().split('T')[0]} 
-                    className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-amber-400 border border-gray-600" 
-                    value={editFormData.date} 
-                    onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value, timeSlots: [] })} 
-                  />
+                  <input type="date" min={new Date().toISOString().split('T')[0]} className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-amber-400 border border-gray-600" value={editFormData.date} onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value, timeSlots: [] })} />
                 </div>
                 <div>
                   <label className="block text-sm mb-1.5 text-slate-300">負責顧問</label>
-                  <select 
-                    className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-amber-400 border border-gray-600" 
-                    value={editFormData.advisorId} 
-                    onChange={(e) => setEditFormData({ ...editFormData, advisorId: e.target.value, timeSlots: [] })}
-                  >
+                  <select className="w-full p-2.5 rounded-lg bg-gray-700 text-white outline-none focus:ring-2 focus:ring-amber-400 border border-gray-600" value={editFormData.advisorId} onChange={(e) => setEditFormData({ ...editFormData, advisorId: e.target.value, timeSlots: [] })}>
                     {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
                 </div>
@@ -2551,12 +2485,7 @@ const handleDeleteAdvisor = async (id, name) => {
                 ) : (
                   <div className="grid grid-cols-3 gap-2 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
                     {editAvailableSlots.map(slot => (
-                      <button 
-                        key={slot} 
-                        type="button" 
-                        onClick={() => handleToggleEditSlot(slot)} 
-                        className={`py-2 text-xs rounded-lg border font-bold transition-colors ${editFormData.timeSlots.includes(slot) ? 'bg-amber-500 text-white border-amber-500 shadow-md' : 'bg-gray-700 text-slate-300 border-gray-600 hover:bg-gray-600'}`}
-                      >
+                      <button key={slot} type="button" onClick={() => handleToggleEditSlot(slot)} className={`py-2 text-xs rounded-lg border font-bold transition-colors ${editFormData.timeSlots.includes(slot) ? 'bg-amber-500 text-white border-amber-500 shadow-md' : 'bg-gray-700 text-slate-300 border-gray-600 hover:bg-gray-600'}`}>
                         {slot}
                       </button>
                     ))}
