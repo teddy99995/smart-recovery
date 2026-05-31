@@ -104,18 +104,29 @@ const BookingDisclaimer = () => {
   );
 };
 
-// 老闆營收分析組件
+// 老闆營收分析組件 (已修正跨年合併問題)
 export const getBossAnalytics = (records) => {
   if (!records || !Array.isArray(records)) return {};
   return records.reduce((acc, curr) => {
     if (!curr || !curr.date) return acc;
     const dateObj = new Date(curr.date);
     if (isNaN(dateObj.getTime())) return acc;
-    const month = dateObj.getMonth() + 1;
-    if (!acc[month]) acc[month] = { total: 0, new: 0, return: 0, cancelled: 0 };
-    if (curr.status === '已取消' || curr.status === '取消') { acc[month].cancelled += 1; return acc; }
-    acc[month].total += 1;
-    if (curr.customerType === '初次預約') acc[month].new += 1; else acc[month].return += 1;
+
+    // 修正：加上年份，例如 "2026-05" 而不是只有單純的月份
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const yearMonth = `${year}-${month}`;
+
+    if (!acc[yearMonth]) acc[yearMonth] = { total: 0, new: 0, return: 0, cancelled: 0 };
+    if (curr.status === '已取消' || curr.status === '取消') { 
+      acc[yearMonth].cancelled += 1; 
+      return acc; 
+    }
+    
+    acc[yearMonth].total += 1;
+    if (curr.customerType === '初次預約') acc[yearMonth].new += 1; 
+    else acc[yearMonth].return += 1;
+    
     return acc;
   }, {});
 };
@@ -223,6 +234,7 @@ export default function App() {
   const [schedules, setSchedules] = useState([]);
   const [customerMemos, setCustomerMemos] = useState({});
   const [teamMembers, setTeamMembers] = useState(DEFAULT_TEAM);
+  const [customers, setCustomers] = useState([]);
 
   // 👇==== 新增：儲值套票方案的專屬狀態 ====👇
   const [depositPlans, setDepositPlans] = useState([]);
@@ -269,6 +281,17 @@ export default function App() {
   const [showPwdModal, setShowPwdModal] = useState(false);
   const [userNewPwd, setUserNewPwd] = useState('');
   const [appMode, setAppMode] = useState('booking');
+
+  // 👇==== 新增：薪資轉帳狀態 ====👇
+  const [payrollStatus, setPayrollStatus] = useState({});
+  const handleTogglePaid = (advisorId, month) => {
+    setPayrollStatus(prev => ({
+      ...prev,
+      [`${advisorId}_${month}`]: !prev[`${advisorId}_${month}`]
+    }));
+  };
+  // 👆==================================👆
+
   const [calViewMode, setCalViewMode] = useState('week');
   const [calBaseDate, setCalBaseDate] = useState(new Date());
   const [calTargetAdvisor, setCalTargetAdvisor] = useState(currentUser?.role === 'admin' ? 'all' : currentUser?.id);
@@ -664,7 +687,7 @@ export default function App() {
       items: cart
     };
     try {
-      await addDoc(collection(db, "revenueRecords"), newRecord);
+      await addDoc(collection(db, "revenue_logs"), newRecord);
       setCart([]); setCalcDiscount('10');
       const advisorName = teamMembers.find(m => m.id === calcAdvisor)?.name || '未知';
       alert(`✅ 收款成功！已自動存入雲端\n經手人：${advisorName}\n入帳金額：$${calcFinalAmount} 元`);
@@ -1069,31 +1092,68 @@ export default function App() {
     return dailySchedule.slots.filter(slot => !bookedSlots.includes(slot)).sort();
   }, [rebookFormData.date, rebookFormData.consultant, schedules, appointments]);
 
-  const analyticsData = useMemo(() => {
+const analyticsData = useMemo(() => {
     if (!currentUser || currentUser.role !== 'admin') return null;
     let kpi = { total: 0, new: 0, return: 0, totalHours: 0 };
     let advisorStats = {}, serviceStats = {};
 
+    // 1. 計算「預約數量」與「勞務工時」
     appointments.forEach(appt => {
-      if (appt.date && appt.date.startsWith(selectedMonth) && appt.status !== '已取消') {
+        if (appt.date && appt.date.startsWith(selectedMonth) && appt.status !== '已取消') {
         if (!selectedAnalyticsAdvisors.includes(appt.advisorId)) return;
         kpi.total++;
         if (appt.customerType === '初次預約') kpi.new++; else kpi.return++;
+        
         const aid = appt.advisorId || 'any';
-        if (!advisorStats[aid]) advisorStats[aid] = { count: 0, hours: 0 };
+        if (!advisorStats[aid]) advisorStats[aid] = { count: 0, hours: 0, newCount: 0, revenue: 0 };
+        
         advisorStats[aid].count += 1;
+        if (appt.customerType === '初次預約') advisorStats[aid].newCount += 1;
+
         const slotsCount = appt.timeSlots ? appt.timeSlots.length : (appt.exactDisplayTime ? appt.exactDisplayTime.split(',').length : 1);
         const sessionHours = slotsCount * 0.5;
         advisorStats[aid].hours += sessionHours;
         kpi.totalHours += sessionHours;
+        
         const sType = appt.serviceType || '未填寫';
         serviceStats[sType] = (serviceStats[sType] || 0) + 1;
       }
     });
 
+    // 2. 彙整「雙系統」的實際營收金額
+    revenueRecords.forEach(record => {
+      // 兼容 POS (finalAmount/date) 與 病歷系統 (amount/timestamp) 的欄位差異
+      const amount = record.finalAmount || record.amount || 0; 
+      const recordDate = record.date || record.timestamp || record.dateStr || "";
+      const aid = record.advisorId;
+      
+      if (recordDate.startsWith(selectedMonth) && aid && advisorStats[aid]) {
+        advisorStats[aid].revenue += amount;
+      }
+    });
+
+    // 3. 💸 核心薪資與抽成計算邏輯！
+    Object.keys(advisorStats).forEach(aid => {
+      const stats = advisorStats[aid];
+      const isBoss = teamMembers.find(m => m.id === aid)?.role === 'admin';
+      
+      // 規則 A：管理員抽成 100%，一般顧問滿 40 堂抽成 55%，否則 50%
+      stats.commissionRate = isBoss ? 1.0 : (stats.hours >= 40 ? 0.55 : 0.50);
+      stats.laborPay = Math.round(stats.revenue * stats.commissionRate); // 實際勞務抽成
+      
+      // 規則 B：初評轉單獎金 (這裡以服務新客數做基準，實務上可再對比是否儲值)
+      stats.bonus = 0;
+      if (stats.newCount >= 20) stats.bonus = 2000;
+      else if (stats.newCount >= 10) stats.bonus = 1000;
+      else if (stats.newCount >= 5) stats.bonus = 500;
+
+      // 總薪資 = 勞務抽成 + 獎金
+      stats.totalSalary = stats.laborPay + stats.bonus;
+    });
+
     const sortedServices = Object.keys(serviceStats).map(key => ({ name: key, count: serviceStats[key] })).sort((a, b) => b.count - a.count);
     return { kpi, advisorStats, sortedServices };
-  }, [appointments, selectedMonth, selectedAnalyticsAdvisors, currentUser]);
+  }, [appointments, revenueRecords, selectedMonth, selectedAnalyticsAdvisors, currentUser]);
 
   const renderTimeSection = (title, icon, startH, endH, bgColor, textColor, borderColor) => {
     const sectionSlots = ALL_TIME_SLOTS.filter(s => { const h = parseInt(s.split(':')[0]); return h >= startH && h < endH; });
@@ -1682,26 +1742,46 @@ export default function App() {
                         <button type="submit" className="w-full bg-[#192039] text-[#e3b5a1] font-bold py-3 rounded-xl shadow-md mt-2 flex justify-center items-center gap-2 hover:bg-slate-800 transition-colors"><Plus size={16} /> 確認新增</button>
                       </form>
                     </div>
-                    {/* 成員列表 */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border md:col-span-2 overflow-x-auto">
+                   {/* 成員列表 */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border md:col-span-2 overflow-x-auto h-fit">
                       <h4 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><Users size={18} /> 目前團隊帳號名單</h4>
                       <table className="w-full text-left text-sm min-w-[500px]">
-                        <thead><tr className="border-b text-slate-500"><th className="pb-3 font-bold pl-2">顯示名稱</th><th className="pb-3 font-bold">帳號</th><th className="pb-3 font-bold">密碼 (點擊修改)</th><th className="pb-3 font-bold">角色</th><th className="pb-3 font-bold text-right pr-2">操作</th></tr></thead>
+                        <thead>
+                          <tr className="border-b text-slate-500 bg-slate-50">
+                            <th className="p-3 font-bold rounded-tl-lg">顯示名稱</th>
+                            <th className="p-3 font-bold">帳號</th>
+                            <th className="p-3 font-bold">密碼 (點擊修改)</th>
+                            <th className="p-3 font-bold text-center">角色</th>
+                            <th className="p-3 font-bold text-center rounded-tr-lg">操作</th>
+                          </tr>
+                        </thead>
                         <tbody>
-                          {displayTeam.map(m => (
+                          {teamMembers.map(m => (
                             <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                              <td className="py-3 font-bold text-slate-700 pl-2">{m.name}</td><td className="py-3 text-slate-600">{m.id}</td>
-                              <td className="py-3 text-slate-600 font-mono text-xs">
-                                <div className="flex items-center gap-2"><span>{m.pwd}</span>
+                              <td className="p-3 font-bold text-slate-800 text-[14px]">{m.name}</td>
+                              <td className="p-3 text-slate-600">{m.id}</td>
+                              <td className="p-3 text-slate-600">
+                                <div className="flex items-center gap-2">
+                                  <span>{m.pwd}</span>
                                   <button onClick={() => {
-                                    const newPwd = window.prompt(`請為 ${m.name} 重新設定新密碼：\n(目前密碼: ${m.pwd})`, m.pwd);
-                                    if (newPwd !== null && newPwd.trim() !== "" && newPwd !== m.pwd) handleUpdatePassword(m.id, newPwd.trim());
-                                  }} className="text-slate-400 hover:text-indigo-600 p-1 bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 rounded transition-colors shadow-sm"><Edit2 size={12} /></button>
+                                    const newPwd = window.prompt(`請輸入 ${m.name} 的新密碼：`, m.pwd);
+                                    if (newPwd !== null && newPwd.trim() !== '') handleUpdatePassword(m.id, newPwd);
+                                  }} className="text-slate-400 hover:text-indigo-500 transition-colors" title="修改密碼">
+                                    <Edit2 size={14} />
+                                  </button>
                                 </div>
                               </td>
-                              <td className="py-3"><span className={`px-2 py-1 rounded text-xs font-bold ${m.role === 'admin' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{m.role === 'admin' ? '管理員' : '顧問'}</span></td>
-                              <td className="py-3 text-right pr-2">
-                                {m.id !== 'ted' ? (<button onClick={() => handleDeleteAdvisor(m.id, m.name)} className="text-rose-500 hover:bg-rose-100 p-2 rounded-lg transition-colors shadow-sm border border-rose-100"><Trash size={16} /></button>) : (<span className="text-xs text-slate-400 font-bold bg-slate-100 px-2 py-1 rounded">最高權限</span>)}
+                              <td className="p-3 text-center">
+                                {m.role === 'admin' ? (
+                                  <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-bold">管理員</span>
+                                ) : (
+                                  <span className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-xs font-bold">顧問</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-center">
+                                <button onClick={() => handleDeleteAdvisor(m.id, m.name)} disabled={m.id === 'ted' || m.id === 'admin'} className={`p-1.5 rounded-lg border transition-colors shadow-sm ${m.id === 'ted' || m.id === 'admin' ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed' : 'bg-white text-rose-500 border-rose-200 hover:bg-rose-50'}`} title="刪除帳號">
+                                  <Trash2 size={16} />
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -1750,17 +1830,61 @@ export default function App() {
                       {/* 顧問績效表 */}
                       <div className="bg-white p-6 rounded-2xl shadow-sm border mt-6 overflow-x-auto">
                         <h4 className="font-bold flex items-center gap-2 mb-4 text-lg"><Users className="text-blue-500" /> 顧問績效與工時統計表</h4>
-                        <table className="w-full text-left text-sm min-w-[500px]">
-                          <thead><tr className="border-b text-slate-500"><th className="pb-3 font-bold">顧問名稱</th><th className="pb-3 font-bold text-center">接單數</th><th className="pb-3 font-bold text-center">總工時 (小時)</th><th className="pb-3 font-bold text-right">該顧問貢獻產值 (NT$)</th></tr></thead>
+                        <table className="w-full text-left text-sm min-w-[800px]">
+                          <thead>
+                            <tr className="border-b text-slate-500 bg-slate-50">
+                              <th className="p-3 font-bold rounded-tl-lg">顧問名稱</th>
+                              <th className="p-3 font-bold text-center">總工時 / 新客</th>
+                              <th className="p-3 font-bold text-right">創造總營收</th>
+                              <th className="p-3 font-bold text-center text-amber-600">達成抽成率</th>
+                              <th className="p-3 font-bold text-right text-amber-600">勞務抽成</th>
+                              <th className="p-3 font-bold text-right text-indigo-500">轉單獎金</th>
+                              <th className="p-3 font-bold text-right text-emerald-600 rounded-tr-lg">✅ 應發總薪資</th>
+                            </tr>
+                          </thead>
                           <tbody>
                             {teamMembers.map(m => {
-                              const stats = analyticsData.advisorStats[m.id] || { count: 0, hours: 0 };
-                              const revenue = stats.hours * SESSION_PRICE;
-                              if (stats.count === 0) return null;
+                              const stats = analyticsData.advisorStats[m.id];
+                              if (!stats || stats.count === 0) return null;
                               return (
                                 <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                  <td className="py-4 font-bold text-slate-700 text-[15px]">{m.name}</td><td className="py-4 text-center font-medium text-slate-600">{stats.count} 單</td>
-                                  <td className="py-4 text-center font-bold text-blue-600 text-[15px]">{stats.hours} hr</td><td className="py-4 text-right font-bold text-green-600 text-[15px]">${revenue.toLocaleString()}</td>
+                                  <td className="p-3 font-bold text-slate-800 text-[15px]">{m.name}</td>
+                                  <td className="p-3 text-center font-medium text-slate-600">
+                                    {stats.hours} hr <br/>
+                                    <span className="text-[11px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded">新客 {stats.newCount}</span>
+                                  </td>
+                                  <td className="p-3 text-right font-bold text-slate-500">${stats.revenue.toLocaleString()}</td>
+                                  
+                                  {/* 抽成率判定：滿40小 55%，否則 50% */}
+                                  <td className="p-3 text-center font-bold">
+                                    <span className={`px-2 py-1 rounded-md ${stats.commissionRate === 0.55 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                      {stats.commissionRate * 100}%
+                                    </span>
+                                  </td>
+                                  
+                                  <td className="p-3 text-right font-bold text-amber-600">${stats.laborPay.toLocaleString()}</td>
+                                  
+                                  <td className="p-3 text-right font-bold text-indigo-500">
+                                    {stats.bonus > 0 ? `+$${stats.bonus.toLocaleString()}` : '-'}
+                                  </td>
+                                  
+                                <td className="p-3 text-right font-black text-emerald-600 text-[16px] bg-emerald-50/30">
+                                 <div className="flex items-center justify-end gap-3">
+                                <span>${stats.totalSalary.toLocaleString()}</span>
+    
+                                  {/* 已轉帳按鈕 */}
+                                 <button 
+                                 onClick={() => handleTogglePaid(m.id, selectedMonth)}
+                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-1 ${
+                                payrollStatus[`${m.id}_${selectedMonth}`] 
+                              ? 'bg-emerald-500 text-white hover:bg-emerald-600' 
+                              : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                                  }`}
+                                    >
+                                     {payrollStatus[`${m.id}_${selectedMonth}`] ? <><CheckCircle size={14} /> 已轉帳</> : '標記轉帳'}
+                                  </button>
+                                 </div>
+                              </td>
                                 </tr>
                               )
                             })}
@@ -1840,7 +1964,7 @@ export default function App() {
                   )}
                 </div>
               )}
-              {/* ================= 預約戰情室 (Appointments) ================= */}
+{/* ================= 預約戰情室 (Appointments) ================= */}
               {adminTab === 'appointments' && (
                 <div className="space-y-4 p-6">
                   <div className="flex justify-between items-center mb-4 border-b pb-4 gap-4 flex-wrap">
@@ -1856,7 +1980,19 @@ export default function App() {
                       <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${appt.customerType === '初次預約' ? 'bg-amber-400' : 'bg-[#9aa486]'}`}></div>
                       <div className="pl-2">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <span className="font-bold text-lg">{appt.name}</span><span className="text-[11px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-600">{appt.customerType}</span>
+                          <span className="font-bold text-lg">{appt.name}</span>
+                          <span className="text-[11px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-600">{appt.customerType}</span>
+                          
+                          {/* 自動連動顯示剩餘堂數 */}
+                          {(() => {
+                            const cust = customers.find(c => c.phone === appt.phone || c.id === appt.phone);
+  return cust && cust.remainingSessions > 0 ? (
+    <span className="text-[11px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-black border border-amber-200 animate-pulse">
+      套票剩 {cust.remainingSessions} 堂
+    </span>
+  ) : null;
+})()}
+
                           <span className="bg-[#192039] text-[#e3b5a1] px-2 py-0.5 rounded text-xs font-bold tracking-wider">{appt.date} {appt.exactDisplayTime}</span>
                         </div>
                         <div className="text-[13px] font-bold text-slate-500 mb-2">{appt.serviceType} | 顧問: {appt.advisorName}</div>
@@ -1879,6 +2015,14 @@ export default function App() {
                             <button onClick={() => handleOpenHistoryModal(appt.phone)} className="text-xs bg-slate-100 border border-slate-300 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all">
                               <Clipboard size={12} /> 查看歷史 & 備註
                             </button>
+                            
+                            {/* 新增的報到按鈕 */}
+                            {apptFilter !== 'past' && appt.status !== '已報到' && appt.status !== '已完成' && (
+                              <button onClick={() => handleUpdateApptStatus(appt, '已報到')} className="text-xs bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all">
+                                📍 報到
+                              </button>
+                            )}
+
                             {apptFilter !== 'past' && (
                               <button onClick={() => handleOpenEditModal(appt)} className="text-xs bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm">
                                 <Edit2 size={12} /> 改期
@@ -1905,10 +2049,10 @@ export default function App() {
                   <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-6">
                     <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">📅 預約訂單管理 (本月)</h3>
                     <div className="space-y-3">
-                      {appointments.filter(appt => appt.date >= `${new Date().toISOString().substring(0, 7)}-01`).length === 0 ? (
+                      {appointments.filter(appt => appt.date && appt.date.startsWith(selectedMonth)).length === 0 ? (
                         <p className="text-slate-500 text-center py-4">本月目前尚無預約記錄</p>
                       ) : (
-                        appointments.filter(appt => appt.date >= `${new Date().toISOString().substring(0, 7)}-01`).map(appt => (
+                        appointments.filter(appt => appt.date && appt.date.startsWith(selectedMonth)).map(appt => (
                           <div key={appt.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-[#9aa486] transition-colors">
                             <button onClick={() => handleOpenRebookModal(appt)} className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm"><CalendarPlus size={12} /> 現場預約下次</button>
                             <div className="mb-3 sm:mb-0 mt-3 sm:mt-0 flex-1 sm:ml-4">
