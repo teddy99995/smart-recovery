@@ -302,7 +302,7 @@ export default function App() {
   const [successData, setSuccessData] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [adminTab, setAdminTab] = useState('appointments');
-  const [newAdvisor, setNewAdvisor] = useState({ id: '', name: '', pwd: '', role: 'advisor' });
+const [newAdvisor, setNewAdvisor] = useState({ id: '', name: '', pwd: '', role: 'advisor', commissionRate: 50 });
 
   const [clientSearchPhone, setClientSearchPhone] = useState('');
   const [clientAppts, setClientAppts] = useState([]);
@@ -326,6 +326,7 @@ export default function App() {
   const [customItem, setCustomItem] = useState({ name: '', price: '', qty: 1 });
   const [calcDiscount, setCalcDiscount] = useState('10');
   const [calcAdvisor, setCalcAdvisor] = useState('');
+  const [isDesignated, setIsDesignated] = useState(false);
   const [revenueRecords, setRevenueRecords] = useState([]);
   const [priceList, setPriceList] = useState({ services: [], addons: [] });
   const [newProduct, setNewProduct] = useState({ type: 'services', name: '', price: '', commission: '' });
@@ -562,6 +563,14 @@ export default function App() {
     } catch (err) { alert("密碼更新失敗：" + err.message); }
   };
 
+const handleUpdateCommission = async (targetId, newRate) => {
+    const rate = Number(newRate);
+    if (isNaN(rate) || rate < 0 || rate > 100) return alert("請輸入 0 ~ 100 之間的有效數字！");
+    try {
+      await setDoc(doc(db, "users", targetId), { commissionRate: rate }, { merge: true });
+      alert("✅ 抽成率更新成功！報表已自動重新計算薪資。");
+    } catch (err) { alert("更新失敗：" + err.message); }
+  };
   const exportToGoogleSheets = async () => {
     if (revenueRecords.length === 0) return alert('目前沒有任何營收紀錄可匯出！');
     try {
@@ -656,18 +665,19 @@ const handleAddCartItem = (name, price, qty, isBase = false, commission = 0) => 
     setCustomItem({ name: '', price: '', qty: 1 });
   };
 
-  const handleConfirmPayment = async () => {
+const handleConfirmPayment = async () => {
     if (cart.length === 0 || cartTotal <= 0) return alert('請先加入商品或服務項目！');
     if (!calcAdvisor) return alert('⚠️ 請先選擇「本次收款人」是誰，才能結帳喔！');
     const newRecord = {
       date: new Date().toISOString(),
       originalPrice: cartTotal, discount: Number(calcDiscount),
       finalAmount: calcFinalAmount, advisorId: calcAdvisor,
-      items: cart
+      items: cart,
+      isDesignated: isDesignated // 👈 存入這筆是否為指定客
     };
     try {
       await addDoc(collection(db, "revenueRecords"), newRecord);
-      setCart([]); setCalcDiscount('10');
+      setCart([]); setCalcDiscount('10'); setIsDesignated(false); // 👈 結帳完重置
       const advisorName = teamMembers.find(m => m.id === calcAdvisor)?.name || '未知';
       alert(`✅ 收款成功！已自動存入雲端\n經手人：${advisorName}\n入帳金額：$${calcFinalAmount} 元`);
       setShowPOS(false);
@@ -676,9 +686,12 @@ const handleAddCartItem = (name, price, qty, isBase = false, commission = 0) => 
     }
   };
 
-  const handleQuickCheckout = (appt) => {
+const handleQuickCheckout = (appt) => {
     const validAdvisor = teamMembers.find(m => m.id === appt.advisorId);
     setCalcAdvisor(validAdvisor ? validAdvisor.id : '');
+    
+    // 👈 自動判斷：如果預約時有選特定顧問，就自動幫收銀機打勾「指定客」
+    setIsDesignated(appt.advisorName !== '不指定顧問' && appt.advisorName !== '未指定' && appt.advisorName !== '顧問團隊');
     
     let basePrice = 1600;
     if (appt.customerType === '首次評估') basePrice = 2000;
@@ -943,14 +956,18 @@ const handleAddCartItem = (name, price, qty, isBase = false, commission = 0) => 
     }));
   };
 
-  const handleAddAdvisor = async (e) => {
+const handleAddAdvisor = async (e) => {
     e.preventDefault();
     if (teamMembers.find(m => m.id === newAdvisor.id)) return alert('帳號ID已存在，請使用另一個英文帳號！');
     try {
-      await setDoc(doc(db, "users", newAdvisor.id), newAdvisor);
+      // 寫入時加上抽成變數
+      const advisorData = { ...newAdvisor, commissionRate: Number(newAdvisor.commissionRate) || 50 };
+      await setDoc(doc(db, "users", newAdvisor.id), advisorData);
+      
       const updatedActive = [...activeAdvisors, newAdvisor.id];
       await setDoc(doc(db, "settings", "teamConfig"), { activeIds: updatedActive }, { merge: true });
-      setNewAdvisor({ id: '', name: '', pwd: '', role: 'advisor' }); alert('✅ 新增團隊成員成功！');
+      setNewAdvisor({ id: '', name: '', pwd: '', role: 'advisor', commissionRate: 50 }); 
+      alert('✅ 新增團隊成員成功！');
     } catch (err) { alert('新增失敗：' + err.message); }
   };
 
@@ -1087,8 +1104,9 @@ const analyticsData = useMemo(() => {
     let kpi = { total: 0, new: 0, return: 0, totalHours: 0 };
     let advisorStats = {}, serviceStats = {};
 
+    // 1. 計算「預約數量」與「勞務工時」
     appointments.forEach(appt => {
-        if (appt.date && appt.date.startsWith(selectedMonth) && appt.status !== '已取消') {
+      if (appt.date && appt.date.startsWith(selectedMonth) && appt.status !== '已取消') {
         if (!selectedAnalyticsAdvisors.includes(appt.advisorId)) return;
         kpi.total++;
         if (appt.customerType === '首次評估') kpi.new++; else kpi.return++;
@@ -1109,18 +1127,19 @@ const analyticsData = useMemo(() => {
       }
     });
 
-revenueRecords.forEach(record => {
+    // 2. 彙整「雙系統」的實際營收金額，並分離出周邊商品與指定客
+    revenueRecords.forEach(record => {
       const amount = record.finalAmount || record.amount || 0; 
       const recordDate = record.date || record.timestamp || record.dateStr || "";
       const aid = record.advisorId;
       
       if (recordDate.startsWith(selectedMonth) && aid && advisorStats[aid]) {
-        advisorStats[aid].revenue += amount; // 總創造營收
+        advisorStats[aid].revenue += amount; 
 
-        // 👈 新增：計算這筆結帳單裡面，有多少是「周邊商品」的營收，以及該發多少「抽成獎金」
         let addonRevenue = 0;
         let addonComm = 0;
 
+        // 計算周邊商品的自訂抽成金
         if (record.items && Array.isArray(record.items)) {
           record.items.forEach(item => {
              if (!item.isBase && item.commission > 0) {
@@ -1129,39 +1148,57 @@ revenueRecords.forEach(record => {
              }
           });
         }
+        
+        // 分離出「純勞務」的營業額
+        let baseRev = amount - addonRevenue;
+        if (baseRev < 0) baseRev = 0;
+
+        // 將純勞務營業額分流到「指定客」或「一般客」
+        if (record.isDesignated) {
+           advisorStats[aid].designatedRevenue = (advisorStats[aid].designatedRevenue || 0) + baseRev;
+        } else {
+           advisorStats[aid].regularRevenue = (advisorStats[aid].regularRevenue || 0) + baseRev;
+        }
+
         advisorStats[aid].addonCommission = (advisorStats[aid].addonCommission || 0) + addonComm;
         advisorStats[aid].addonRevenue = (advisorStats[aid].addonRevenue || 0) + addonRevenue;
       }
     });
 
+    // 3. 💸 核心薪資與抽成計算邏輯！(含 60% 封頂機制)
     Object.keys(advisorStats).forEach(aid => {
       const stats = advisorStats[aid];
-      const isBoss = teamMembers.find(m => m.id === aid)?.role === 'admin';
+      const member = teamMembers.find(m => m.id === aid);
+      const isBoss = member?.role === 'admin';
       
-      // 👈 新增：把「算 % 數的基礎服務」跟「周邊商品」切開來
-      let baseRevenue = stats.revenue - (stats.addonRevenue || 0);
-      if (baseRevenue < 0) baseRevenue = 0; // 防呆機制
-
-      stats.commissionRate = isBoss ? 1.0 : (stats.hours >= 40 ? 0.55 : 0.50);
+      // 取得該顧問自訂的基礎抽成 (預設50%)
+      const customRate = member?.commissionRate !== undefined ? Number(member.commissionRate) : 50;
+      let baseRate = customRate / 100;
       
-      // 👈 新增：勞務抽成 = (基礎服務營收 * 抽成%) + 周邊商品的固定自訂獎金
-      stats.laborPay = Math.round(baseRevenue * stats.commissionRate) + (stats.addonCommission || 0); 
+      // 滿 40 堂加碼 5%
+      let bonusRate = 0;
+      if (stats.count >= 40) {
+         bonusRate = 0.05;
+      }
       
-      stats.bonus = 0;
-      if (stats.newCount >= 20) stats.bonus = 2000;
-      else if (stats.newCount >= 10) stats.bonus = 1000;
-      else if (stats.newCount >= 5) stats.bonus = 500;
-
-      stats.totalSalary = stats.laborPay + stats.bonus;
-    });
-
-    Object.keys(advisorStats).forEach(aid => {
-      const stats = advisorStats[aid];
-      const isBoss = teamMembers.find(m => m.id === aid)?.role === 'admin';
+      // 💡 60% 封頂防呆機制：如果基礎 + 加碼超過 60%，就強制壓在 60%
+      let finalRegularRate = baseRate + bonusRate;
+      if (finalRegularRate > 0.60) {
+          finalRegularRate = 0.60;
+      }
       
-      stats.commissionRate = isBoss ? 1.0 : (stats.hours >= 40 ? 0.55 : 0.50);
-      stats.laborPay = Math.round(stats.revenue * stats.commissionRate); 
+      // 寫入最終抽成率 (老闆永遠是 100%)
+      stats.regularRate = isBoss ? 1.0 : finalRegularRate;
+      stats.designatedRate = isBoss ? 1.0 : 0.60;
       
+      // 計算勞務薪資
+      let regularPay = Math.round((stats.regularRevenue || 0) * stats.regularRate);
+      let designatedPay = Math.round((stats.designatedRevenue || 0) * stats.designatedRate);
+      
+      // 總薪資 = 一般客 + 指定客 + 周邊商品獎金
+      stats.laborPay = regularPay + designatedPay + (stats.addonCommission || 0); 
+      
+      // 初評轉單獎金
       stats.bonus = 0;
       if (stats.newCount >= 20) stats.bonus = 2000;
       else if (stats.newCount >= 10) stats.bonus = 1000;
@@ -1620,18 +1657,26 @@ revenueRecords.forEach(record => {
                         ))}
                       </div>
 
-                      {/* 新增區 */}
-                      <form onSubmit={handleAddProduct} className="bg-[#9aa486]/10 border border-[#9aa486]/20 rounded-2xl p-2.5 flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                        <select value={newProduct.type} onChange={e => setNewProduct({ ...newProduct, type: e.target.value })} className="px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#9aa486]/50 shrink-0">
-                          <option value="services">基礎服務</option>
-                          <option value="addons">加價購/周邊</option>
-                        </select>
-                        <input type="text" required placeholder="新增項目名稱..." value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} className="flex-1 min-w-0 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#9aa486]/50" />
-                        <input type="number" required placeholder="$ 價格" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} className="w-24 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#9aa486]/50" />
-                        {newProduct.type === 'addons' && (
-    <input type="number" placeholder="$ 顧問抽成" value={newProduct.commission} onChange={e => setNewProduct({...newProduct, commission: e.target.value})} className="w-24 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-amber-600 focus:ring-2 focus:ring-amber-300" title="若賣出此商品，顧問可獲得的固定獎金" />
-  )}
-                        <button type="submit" className="bg-[#9aa486] hover:bg-[#868f74] text-white p-2.5 rounded-xl transition-colors shadow-sm"><Plus size={18}/></button>
+{/* 新增區 */}
+                      <form onSubmit={handleAddProduct} className="bg-[#9aa486]/10 border border-[#9aa486]/20 rounded-2xl p-3 flex flex-col gap-3">
+                        {/* 上排：類別與名稱 */}
+                        <div className="flex gap-2">
+                          <select value={newProduct.type} onChange={e => setNewProduct({ ...newProduct, type: e.target.value })} className="w-1/3 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#9aa486]/50 shrink-0">
+                            <option value="services">基礎服務</option>
+                            <option value="addons">加價購/周邊</option>
+                          </select>
+                          <input type="text" required placeholder="新增項目名稱..." value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} className="flex-1 min-w-0 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#9aa486]/50" />
+                        </div>
+                        {/* 下排：價格、抽成與按鈕 */}
+                        <div className="flex gap-2">
+                          <input type="number" required placeholder="$ 價格" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} className="flex-1 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#9aa486]/50" />
+                          {newProduct.type === 'addons' && (
+                            <input type="number" placeholder="$ 顧問抽成" value={newProduct.commission} onChange={e => setNewProduct({...newProduct, commission: e.target.value})} className="flex-1 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-amber-600 focus:ring-2 focus:ring-amber-300" title="若賣出此商品，顧問可獲得的固定獎金" />
+                          )}
+                          <button type="submit" className="bg-[#9aa486] hover:bg-[#868f74] text-white px-5 py-2.5 rounded-xl transition-colors shadow-sm flex items-center justify-center shrink-0">
+                            <Plus size={18} /> 新增
+                          </button>
+                        </div>
                       </form>
                     </div>
 
@@ -1748,6 +1793,11 @@ revenueRecords.forEach(record => {
                         <div><label className="block text-xs font-bold text-slate-600 mb-1">顯示名稱</label><input type="text" required value={newAdvisor.name} onChange={e => setNewAdvisor({ ...newAdvisor, name: e.target.value })} className="w-full p-2.5 bg-slate-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#9aa486]" placeholder="例如: Kevin" /></div>
                         <div><label className="block text-xs font-bold text-slate-600 mb-1">登入密碼</label><input type="text" required value={newAdvisor.pwd} onChange={e => setNewAdvisor({ ...newAdvisor, pwd: e.target.value })} className="w-full p-2.5 bg-slate-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#9aa486]" placeholder="設定初始密碼" /></div>
                         <div><label className="block text-xs font-bold text-slate-600 mb-1">系統權限</label>
+                        <div>
+  <label className="block text-xs font-bold text-slate-600 mb-1">基礎抽成 (%)</label>
+  <input type="number" required value={newAdvisor.commissionRate} onChange={e => setNewAdvisor({ ...newAdvisor, commissionRate: e.target.value })} className="w-full p-2.5 bg-slate-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#9aa486]" placeholder="例如: 50" />
+</div>
+
                           <select value={newAdvisor.role} onChange={e => setNewAdvisor({ ...newAdvisor, role: e.target.value })} className="w-full p-2.5 bg-slate-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#9aa486]">
                             <option value="advisor">一般顧問</option><option value="admin">管理員</option>
                           </select>
@@ -1764,6 +1814,7 @@ revenueRecords.forEach(record => {
                             <th className="p-3 font-bold rounded-tl-lg">顯示名稱</th>
                             <th className="p-3 font-bold">帳號</th>
                             <th className="p-3 font-bold">密碼 (點擊修改)</th>
+                            <th className="p-3 font-bold">個人抽成 (點擊修改)</th>
                             <th className="p-3 font-bold text-center">角色</th>
                             <th className="p-3 font-bold text-center rounded-tr-lg">操作</th>
                           </tr>
@@ -1795,6 +1846,19 @@ revenueRecords.forEach(record => {
       <span className="text-[11px] bg-rose-100 text-rose-600 px-2 py-0.5 rounded font-bold ml-1">
         🔒 系統鎖定
       </span>
+    )}
+  </div>
+</td>
+<td className="p-3 text-slate-600">
+  <div className="flex items-center gap-2">
+    <span className="font-bold text-amber-600">{m.commissionRate !== undefined ? m.commissionRate : 50}%</span>
+    {currentUser?.role === 'admin' && m.id !== 'admin' && (
+      <button onClick={() => {
+        const newRate = window.prompt(`請設定 ${m.name} 的專屬抽成比例\n(輸入數字，例如 55 代表 55%)：`, m.commissionRate !== undefined ? m.commissionRate : 50);
+        if (newRate !== null && newRate.trim() !== '') handleUpdateCommission(m.id, newRate);
+      }} className="text-slate-400 hover:text-amber-500 transition-colors" title="修改抽成比例">
+        <Edit2 size={14} />
+      </button>
     )}
   </div>
 </td>
@@ -1883,10 +1947,20 @@ revenueRecords.forEach(record => {
                                   <td className="p-3 text-right font-bold text-slate-500">${stats.revenue.toLocaleString()}</td>
                                   
                                   {/* 抽成率判定：滿40小 55%，否則 50% */}
-                                  <td className="p-3 text-center font-bold">
-                                    <span className={`px-2 py-1 rounded-md ${stats.commissionRate === 0.55 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
-                                      {stats.commissionRate * 100}%
-                                    </span>
+<td className="p-3 text-center">
+                                    <div className="flex flex-col items-center gap-1.5">
+                                      {/* 一般客顯示 */}
+                                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${stats.count >= 40 ? 'bg-amber-100 text-amber-700 border border-amber-200 shadow-sm' : 'bg-slate-100 text-slate-600'}`} title="一般客抽成 (若滿40堂已包含+5%)">
+                                        一般 {Math.round(stats.regularRate * 100)}%
+                                      </span>
+                                      
+                                      {/* 如果有指定客業績，才會顯示這塊 */}
+                                      {(stats.designatedRevenue || 0) > 0 && (
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100 shadow-sm">
+                                          指定 60%
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                   
                                   <td className="p-3 text-right font-bold text-amber-600">${stats.laborPay.toLocaleString()}</td>
@@ -2441,12 +2515,20 @@ revenueRecords.forEach(record => {
                   </div>
                 </div>
 
-                <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
-                  <label className="block text-sm font-bold text-amber-800 mb-2">🧑‍⚕️ 本次收款人 (必選)</label>
-                  <select value={calcAdvisor} onChange={(e) => setCalcAdvisor(e.target.value)} className="w-full text-lg p-3 border border-amber-300 rounded-lg font-bold text-slate-800 focus:ring-4 focus:ring-amber-200 outline-none transition-all bg-white">
-                    <option value="" disabled>請選擇是誰收的錢...</option>
-                    {teamMembers.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}
-                  </select>
+<div className="bg-amber-50 p-4 rounded-xl border border-amber-200 space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-amber-800 mb-2">🧑‍⚕️ 本次收款人 (必選)</label>
+                    <select value={calcAdvisor} onChange={(e) => setCalcAdvisor(e.target.value)} className="w-full text-lg p-3 border border-amber-300 rounded-lg font-bold text-slate-800 focus:ring-4 focus:ring-amber-200 outline-none transition-all bg-white">
+                      <option value="" disabled>請選擇是誰收的錢...</option>
+                      {teamMembers.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}
+                    </select>
+                  </div>
+                  
+                  {/* 👈 新增：指定客切換開關 */}
+                  <label className="flex items-center gap-3 cursor-pointer bg-white p-3 rounded-lg border border-amber-300 shadow-sm transition-all hover:bg-amber-100/50">
+                    <input type="checkbox" checked={isDesignated} onChange={(e) => setIsDesignated(e.target.checked)} className="w-5 h-5 accent-amber-600" />
+                    <span className="font-bold text-amber-800">💎 此單為「指定客 / 自帶客」 (抽成 60%)</span>
+                  </label>
                 </div>
 
                 <div>
@@ -2678,4 +2760,4 @@ revenueRecords.forEach(record => {
 
     </div>
   );
-}
+  }
