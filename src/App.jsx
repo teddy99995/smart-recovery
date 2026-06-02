@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { Calendar, User, Clock, Activity, Trash, PlusCircle, CheckCircle, AlertCircle, MessageCircle, MessageSquare, Clipboard, Lock, Users, LogOut, Key, Copy, Plus, List, Sun, Moon, Settings, Phone, Check, Filter, BarChart, Star, Crown, Bot, Sparkles, RefreshCw, DollarSign, Download, CalendarPlus, Inbox, AlertTriangle, FileText, UserPlus, Edit2, ShieldAlert, ShoppingBag, Zap, Ticket, Package, Trash2 } from 'lucide-react';
 
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, writeBatch, updateDoc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, writeBatch, updateDoc, getDocs, where } from "firebase/firestore";
 
 // ==============================================
 // ⚙️ Firebase 初始化防護與設定
@@ -50,7 +50,6 @@ const serviceTypes = [
 // 🧩 獨立共用子元件
 // ==============================================
 
-// 品牌聯絡資訊組件
 const BrandFooter = () => (
   <footer className="w-full text-center px-4 py-8 text-xs text-white/40 relative z-10 space-y-1">
     <p>© {new Date().getFullYear()} Smart Recovery</p>
@@ -59,7 +58,6 @@ const BrandFooter = () => (
   </footer>
 );
 
-// 免責聲明與預約須知組件 (長輩友善大字體)
 const BookingDisclaimer = () => {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -104,7 +102,6 @@ const BookingDisclaimer = () => {
   );
 };
 
-// 老闆營收分析組件 (已修正跨年合併問題)
 export const getBossAnalytics = (records) => {
   if (!records || !Array.isArray(records)) return {};
   return records.reduce((acc, curr) => {
@@ -112,7 +109,6 @@ export const getBossAnalytics = (records) => {
     const dateObj = new Date(curr.date);
     if (isNaN(dateObj.getTime())) return acc;
 
-    // 修正：加上年份，例如 "2026-05" 而不是只有單純的月份
     const year = dateObj.getFullYear();
     const month = String(dateObj.getMonth() + 1).padStart(2, '0');
     const yearMonth = `${year}-${month}`;
@@ -124,7 +120,7 @@ export const getBossAnalytics = (records) => {
     }
     
     acc[yearMonth].total += 1;
-    if (curr.customerType === '初次預約') acc[yearMonth].new += 1; 
+    if (curr.customerType === '首次評估') acc[yearMonth].new += 1; 
     else acc[yearMonth].return += 1;
     
     return acc;
@@ -160,9 +156,6 @@ export const BossDashboard = ({ data, teamMembers = [] }) => {
   } catch (err) { return null; }
 };
 
-// ==============================================
-// 🛠️ 全域輔助函式區
-// ==============================================
 async function callGeminiAPI(prompt, retries = 3, delay = 1000) {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
@@ -229,27 +222,20 @@ const getDayLabel = (dateStr) => {
 // ==============================================
 export default function App() {
 
-  // ⭐️⭐️⭐️ 核心狀態宣告 ⭐️⭐️⭐️
   const [appointments, setAppointments] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [customerMemos, setCustomerMemos] = useState({});
   const [teamMembers, setTeamMembers] = useState(DEFAULT_TEAM);
-  const [customers, setCustomers] = useState([]);
+  const [customers, setCustomers] = useState([]); // 已經修復第一階段
 
-  // 👇==== 新增：儲值套票方案的專屬狀態 ====👇
   const [depositPlans, setDepositPlans] = useState([]);
   const [newPlan, setNewPlan] = useState({ label: '', sessions: '', defaultPrice: '' });
   const [editingPlanId, setEditingPlanId] = useState(null);
   const [editPlanForm, setEditPlanForm] = useState({ label: '', sessions: '', defaultPrice: '' });
-  // 👆==================================👆
 
-  // ==========================================
-  // 👇 改期系統專用狀態與邏輯 👇
-  // ==========================================
   const [editingAppt, setEditingAppt] = useState(null);
   const [editFormData, setEditFormData] = useState({ date: '', timeSlots: [], advisorId: '' });
 
-  // 計算改期時可用的空檔
   const editAvailableSlots = useMemo(() => {
     if (!editFormData.date || !editFormData.advisorId) return [];
     const dailySchedule = schedules.find(s => s.advisorId === editFormData.advisorId && s.date === editFormData.date);
@@ -259,14 +245,12 @@ export default function App() {
       a.advisorId === editFormData.advisorId && 
       a.date === editFormData.date && 
       a.status !== '已取消' &&
-      a.id !== editingAppt?.id // ⭐️ 排除這筆訂單自己，避免自己卡自己
+      a.id !== editingAppt?.id
     ).flatMap(a => a.timeSlots || []);
     
     return dailySchedule.slots.filter(slot => !bookedSlots.includes(slot)).sort();
   }, [editFormData.date, editFormData.advisorId, schedules, appointments, editingAppt]);
 
-  // ==========================================
-  
   const [isAdminHidden, setIsAdminHidden] = useState(false);
   const [isManualLogin, setIsManualLogin] = useState(false);
   
@@ -282,7 +266,6 @@ export default function App() {
   const [userNewPwd, setUserNewPwd] = useState('');
   const [appMode, setAppMode] = useState('booking');
 
-  // 👇==== 新增：薪資轉帳狀態 ====👇
   const [payrollStatus, setPayrollStatus] = useState({});
   const handleTogglePaid = (advisorId, month) => {
     setPayrollStatus(prev => ({
@@ -290,7 +273,6 @@ export default function App() {
       [`${advisorId}_${month}`]: !prev[`${advisorId}_${month}`]
     }));
   };
-  // 👆==================================👆
 
   const [calViewMode, setCalViewMode] = useState('week');
   const [calBaseDate, setCalBaseDate] = useState(new Date());
@@ -300,14 +282,12 @@ export default function App() {
   const SLOT_HEIGHT = 48; 
   const START_HOUR = 9;
 
-  // 取得本機儲存的客戶資料
   const getSavedCustomer = () => {
     try { const saved = localStorage.getItem('smartRecoveryCustomer'); return saved ? JSON.parse(saved) : { name: '', phone: '' }; }
     catch { return { name: '', phone: '' }; }
   };
   const savedInfo = getSavedCustomer();
 
-  // 其他 UI 與表單狀態
   const [showRebookModal, setShowRebookModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(null);
   const [memoInput, setMemoInput] = useState('');
@@ -328,7 +308,6 @@ export default function App() {
   const [clientAppts, setClientAppts] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // 排班狀態
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleAdvisorId, setScheduleAdvisorId] = useState('');
   const [selectedSlots, setSelectedSlots] = useState([]);
@@ -337,13 +316,11 @@ export default function App() {
   const [rangeEndDate, setRangeEndDate] = useState('');
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
-  // 戰情室與營收狀態
   const [apptFilter, setApptFilter] = useState('today');
   const [adminViewAdvisor, setAdminViewAdvisor] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
   const [selectedAnalyticsAdvisors, setSelectedAnalyticsAdvisors] = useState(DEFAULT_TEAM.map(m => m.id));
 
-  // POS 與價格狀態
   const [showPOS, setShowPOS] = useState(false);
   const [cart, setCart] = useState([]);
   const [customItem, setCustomItem] = useState({ name: '', price: '', qty: 1 });
@@ -351,28 +328,22 @@ export default function App() {
   const [calcAdvisor, setCalcAdvisor] = useState('');
   const [revenueRecords, setRevenueRecords] = useState([]);
   const [priceList, setPriceList] = useState({ services: [], addons: [] });
-  const [newProduct, setNewProduct] = useState({ type: 'services', name: '', price: '' });
+  const [newProduct, setNewProduct] = useState({ type: 'services', name: '', price: '', commission: '' });
 
-  // 營收細項摺疊與編輯狀態
   const [expandedRevCustomer, setExpandedRevCustomer] = useState(null);
   const [editingRevenue, setEditingRevenue] = useState(null);
 
-  // AI 與其他
   const [aiInput, setAiInput] = useState('');
   const [aiRec, setAiRec] = useState('');
   const [loadingAi, setLoadingAi] = useState(false);
   const [adviceMap, setAdviceMap] = useState({});
 
-  // ==============================================
-  // 🔄 生命週期與資料監聽 (Firebase onSnapshot)
-  // ==============================================
   useEffect(() => {
     const timer = setInterval(() => setCurrentTimeLine(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
-    // 解決 LINE 內建瀏覽器問題
     const isLineApp = navigator.userAgent.includes('Line');
     const hasExternalParam = window.location.search.includes('openExternalBrowser=1');
     if (isLineApp && !hasExternalParam) {
@@ -451,7 +422,7 @@ export default function App() {
         setPriceList(docSnap.data());
       } else {
         const defaultList = {
-          services: [{ name: '標準單堂', price: 1600 }, { name: '初次評估', price: 2000 }],
+          services: [{ name: '標準單堂', price: 1600 }, { name: '首次評估', price: 2000 }],
           addons: [{ name: '加時半小', price: 800 }, { name: '專業肌貼', price: 150 }, { name: '筋膜球', price: 350 }, { name: '能量飲', price: 80 }]
         };
         setDoc(doc(db, "settings", "priceList"), defaultList);
@@ -459,14 +430,32 @@ export default function App() {
       }
     });
 
-    // 👇==== 新增：監聽儲值方案 ====👇
     const unsubPlans = onSnapshot(collection(db, "deposit_plans"), (snapshot) => {
       const plans = [];
       snapshot.forEach(doc => plans.push({ id: doc.id, ...doc.data() }));
       setDepositPlans(plans.sort((a, b) => a.sessions - b.sessions));
     });
 
-    return () => { unsubAppt(); unsubSched(); unsubSettings(); unsubMemos(); unsubTeam(); unsubRevenue(); unsubPriceList(); unsubPlans(); };
+    // 🌟 修正第一階段：加上客戶的監聽器
+    const unsubCustomers = onSnapshot(collection(db, "customers"), (snapshot) => {
+      const custList = [];
+      snapshot.forEach(doc => {
+        custList.push({ id: doc.id, ...doc.data() });
+      });
+      setCustomers(custList);
+    });
+
+    return () => { 
+      unsubAppt(); 
+      unsubSched(); 
+      unsubSettings(); 
+      unsubMemos(); 
+      unsubTeam(); 
+      unsubRevenue(); 
+      unsubPriceList(); 
+      unsubPlans(); 
+      unsubCustomers(); // 🌟 記得關閉
+    };
   }, []);
 
   useEffect(() => { setSelectedAnalyticsAdvisors(teamMembers.map(m => m.id)); }, [teamMembers]);
@@ -477,17 +466,12 @@ export default function App() {
       setSelectedSlots(existing ? existing.slots : []); setAdditionalDates([]);
     }
   }, [scheduleAdvisorId, scheduleDate, schedules]);
-  // ==============================================
-  // 🧮 動態計算與進階邏輯 (useMemo)
-  // ==============================================
-  
-  // 以客人為索引，動態計算該月的營收分組
+
   const monthlyRevenuesByCustomer = useMemo(() => {
     const filtered = revenueRecords.filter(r => r.date && r.date.startsWith(selectedMonth));
     const groups = {};
     filtered.forEach(r => {
       let cName = "一般現場客";
-      // 從明細中尋找括號裡的客戶名稱 (例如: "基礎服務 (王大明)")
       const baseItem = (r.items || []).find(i => i.isBase || i.name.includes('('));
       if (baseItem) {
         const match = baseItem.name.match(/\(([^)]+)\)/);
@@ -497,7 +481,6 @@ export default function App() {
       groups[cName].records.push(r);
       groups[cName].total += r.finalAmount;
     });
-    // 依據該客人的總消費金額由高到低排序
     return Object.entries(groups).sort((a, b) => b[1].total - a[1].total);
   }, [revenueRecords, selectedMonth]);
 
@@ -520,9 +503,6 @@ export default function App() {
     return monthArray;
   }, [appointments]);
 
-  // ==============================================
-  // 🖱️ 互動操作處理函式：登入、權限與營收管理
-  // ==============================================
 
   const handleUpdateRevenue = async (e) => {
     e.preventDefault();
@@ -552,7 +532,6 @@ export default function App() {
     if (user) {
       setCurrentUser(user); setScheduleAdvisorId(user.id); setShowLoginModal(false);
       setLoginForm({ account: teamMembers[0]?.id || 'ted', password: '' }); setApptFilter('today'); setAdminViewAdvisor('all');
-      // 登入時自動把日曆視角綁定正確的值
       setCalTargetAdvisor(user.role === 'admin' ? 'all' : user.id);
     } else { alert("密碼錯誤！請重新輸入。"); }
   };
@@ -595,21 +574,21 @@ export default function App() {
     } catch (e) { alert('匯出失敗，請檢查網路連線。'); }
   };
 
-  // ==============================================
-  // 🖱️ 互動操作處理函式：商品、套票與收銀機 (POS)
-  // ==============================================
-
-  const handleAddProduct = async (e) => {
-    e.preventDefault();
-    if (!newProduct.name || !newProduct.price) return;
-    const updatedList = { ...priceList };
-    updatedList[newProduct.type] = [...(updatedList[newProduct.type] || []), { name: newProduct.name, price: Number(newProduct.price) }];
-    try {
-      await setDoc(doc(db, "settings", "priceList"), updatedList);
-      setNewProduct({ ...newProduct, name: '', price: '' });
-      alert('✅ 商品新增成功！');
-    } catch (err) { alert('新增失敗: ' + err.message); }
-  };
+const handleAddProduct = async (e) => {
+  e.preventDefault();
+  if (!newProduct.name || !newProduct.price) return;
+  const updatedList = { ...priceList };
+  updatedList[newProduct.type] = [...(updatedList[newProduct.type] || []), { 
+    name: newProduct.name, 
+    price: Number(newProduct.price),
+    commission: Number(newProduct.commission) || 0 // 👈 新增寫入抽成金
+  }];
+  try {
+    await setDoc(doc(db, "settings", "priceList"), updatedList);
+    setNewProduct({ type: newProduct.type, name: '', price: '', commission: '' });
+    alert('✅ 商品新增成功！');
+  } catch (err) { alert('新增失敗: ' + err.message); }
+};
 
   const handleDeleteProduct = async (type, index) => {
     if (!window.confirm("確定要刪除這個項目嗎？")) return;
@@ -620,7 +599,6 @@ export default function App() {
     } catch (err) { alert('刪除失敗'); }
   };
 
-  // 👇==== 新增：儲值方案操作邏輯 ====👇
   const handleAddPlan = async (e) => {
     e.preventDefault();
     if (!newPlan.label || !newPlan.sessions || !newPlan.defaultPrice) return alert("請完整填寫方案名稱、堂數與價格！");
@@ -655,19 +633,20 @@ export default function App() {
     } catch (err) { alert('修改失敗: ' + err.message); }
   };
 
-  const handleAddCartItem = (name, price, qty, isBase = false) => {
-    setCart(prev => {
-      let newCart = [...prev];
-      if (isBase) newCart = newCart.filter(item => !item.isBase);
-      const existingIdx = newCart.findIndex(item => item.name === name && item.price === Number(price));
-      if (existingIdx >= 0 && !isBase) {
-        newCart[existingIdx].qty += Number(qty);
-      } else {
-        newCart.push({ id: Date.now() + Math.random(), name, price: Number(price), qty: Number(qty), isBase });
-      }
-      return newCart;
-    });
-  };
+const handleAddCartItem = (name, price, qty, isBase = false, commission = 0) => {
+  setCart(prev => {
+    let newCart = [...prev];
+    if (isBase) newCart = newCart.filter(item => !item.isBase);
+    const existingIdx = newCart.findIndex(item => item.name === name && item.price === Number(price));
+    if (existingIdx >= 0 && !isBase) {
+      newCart[existingIdx].qty += Number(qty);
+    } else {
+      // 👈 結帳時將專屬抽成金 (commission) 綁定進購物車明細
+      newCart.push({ id: Date.now() + Math.random(), name, price: Number(price), qty: Number(qty), isBase, commission: Number(commission) });
+    }
+    return newCart;
+  });
+};
 
   const handleAddCustomItem = () => {
     if (!customItem.name || !customItem.price || customItem.qty < 1) {
@@ -687,7 +666,7 @@ export default function App() {
       items: cart
     };
     try {
-      await addDoc(collection(db, "revenue_logs"), newRecord);
+      await addDoc(collection(db, "revenueRecords"), newRecord);
       setCart([]); setCalcDiscount('10');
       const advisorName = teamMembers.find(m => m.id === calcAdvisor)?.name || '未知';
       alert(`✅ 收款成功！已自動存入雲端\n經手人：${advisorName}\n入帳金額：$${calcFinalAmount} 元`);
@@ -702,7 +681,7 @@ export default function App() {
     setCalcAdvisor(validAdvisor ? validAdvisor.id : '');
     
     let basePrice = 1600;
-    if (appt.customerType === '初次預約') basePrice = 2000;
+    if (appt.customerType === '首次評估') basePrice = 2000;
     if (appt.timeSlots && appt.timeSlots.length > 2) basePrice += 800 * (appt.timeSlots.length - 2);
 
     setCart([{ 
@@ -715,9 +694,6 @@ export default function App() {
     setCalcDiscount('10'); 
     setShowPOS(true);
   };
-  // ==============================================
-  // 📅 預約、改期與黑名單管理核心邏輯
-  // ==============================================
 
   const handleUpdateApptStatus = async (appt, newStatus) => {
     setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, status: newStatus } : a));
@@ -796,6 +772,7 @@ export default function App() {
     }
   };
 
+  // 🌟 修正第二階段：升級防撞堂機制 (提交前的雲端再驗證)
   const handleSubmit = async (e) => {
     e.preventDefault();
     const clientMemo = customerMemos[formData.phone] || '';
@@ -818,33 +795,54 @@ export default function App() {
     }
 
     if (formData.isFirstTime === 'yes') {
-      if (formData.timeSlots.length < 2) { setConflictError('初次來店需進行詳細的身體評估，請至少選擇 2 個時段 (共 1 小時) 喔！'); return; }
+      if (formData.timeSlots.length < 2) { setConflictError('首次來店需進行詳細的身體評估，請至少選擇 2 個時段 (共 1 小時) 喔！'); return; }
       const sortedSlots = [...formData.timeSlots].sort();
       let isContinuous = true;
       for (let i = 0; i < sortedSlots.length - 1; i++) {
         if (sortedSlots[i].split('-')[1] !== sortedSlots[i + 1].split('-')[0]) { isContinuous = false; break; }
       }
-      if (!isContinuous) { setConflictError('⚠️ 初次預約的時段必須是「連續不斷開」的喔！請重新點選相連的時段。'); return; }
+      if (!isContinuous) { setConflictError('⚠️ 首次預約的時段必須是「連續不斷開」的喔！請重新點選相連的時段。'); return; }
     }
 
     let finalAdvisorId = formData.advisorId;
     let finalAdvisorName = "不指定顧問";
 
     if (formData.advisorId !== 'any') {
-      const isConflict = formData.timeSlots.some(slot => appointments.filter(a => a.advisorId === formData.advisorId && a.date === formData.date && a.status !== '已取消').flatMap(a => a.timeSlots || []).includes(slot));
-      if (isConflict) { setConflictError('時段剛剛被預約走了，請重新選擇！'); setFormData(prev => ({ ...prev, timeSlots: [] })); return; }
       const advisorObj = teamMembers.find(t => t.id === formData.advisorId);
       finalAdvisorName = advisorObj ? advisorObj.name : '顧問團隊';
     }
 
     setIsSubmitting(true);
-    const customerTypeStr = formData.isFirstTime === 'yes' ? '初次預約' : '舊客複診';
-    const sortedSlots = [...formData.timeSlots].sort();
-    const gasTime = `${sortedSlots[0].split('-')[0]}-${sortedSlots[sortedSlots.length - 1].split('-')[1]}`;
-    const exactDisplayTime = formatTimeSlots(sortedSlots);
 
     try {
+      // 🌟 送出前的一毫秒，重新去 Firebase 撈一次最新資料，確保絕對不撞堂
+      const q = query(collection(db, "appointments"), where("advisorId", "==", finalAdvisorId), where("date", "==", formData.date));
+      const querySnapshot = await getDocs(q);
+      const serverAppointments = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if(data.status !== '已取消') {
+           serverAppointments.push(...(data.timeSlots || []));
+        }
+      });
+
+      // 交叉比對客人選的時間，是不是剛剛被別人訂走了
+      const isDoubleBooked = formData.timeSlots.some(slot => serverAppointments.includes(slot));
+      if (isDoubleBooked) {
+         setConflictError('⚠️ 哎呀！這個時段剛剛被別人預約走了，請重新選擇其他時段！');
+         setFormData(prev => ({ ...prev, timeSlots: [] }));
+         setIsSubmitting(false);
+         return;
+      }
+
+      // 如果安全通過，才寫入資料庫
+      const customerTypeStr = formData.isFirstTime === 'yes' ? '首次評估' : '舊客保養';
+      const sortedSlots = [...formData.timeSlots].sort();
+      const gasTime = `${sortedSlots[0].split('-')[0]}-${sortedSlots[sortedSlots.length - 1].split('-')[1]}`;
+      const exactDisplayTime = formatTimeSlots(sortedSlots);
+
       await addDoc(collection(db, "appointments"), { ...formData, advisorId: finalAdvisorId, customerType: customerTypeStr, exactDisplayTime, gasTime, advisorName: finalAdvisorName, status: 'confirmed', createdAt: new Date().toISOString() });
+      
       if (WEBHOOK_URL.startsWith("http")) {
         fetch(WEBHOOK_URL, {
           method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
@@ -854,7 +852,12 @@ export default function App() {
       localStorage.setItem('smartRecoveryCustomer', JSON.stringify({ name: formData.name, phone: formData.phone }));
       setSuccessData({ name: formData.name, customerType: customerTypeStr, date: formData.date, time: exactDisplayTime, service: formData.serviceType, advisor: finalAdvisorName });
       setFormData(prev => ({ ...prev, advisorId: '', isFirstTime: '', date: '', timeSlots: [], serviceType: '', needs: '', bodyParts: [], painLevel: 5 }));
-    } catch (error) { setConflictError('系統連線錯誤，請稍後再試。'); } finally { setIsSubmitting(false); }
+    
+    } catch (error) { 
+      setConflictError('系統連線錯誤，請稍後再試。'); 
+    } finally { 
+      setIsSubmitting(false); 
+    }
   };
 
   const handleInputChange = (e) => {
@@ -888,7 +891,6 @@ export default function App() {
     setClientAppts(found); setHasSearched(true);
   };
 
-  // 改期系統 (儲存新時間)
   const handleSaveEditAppt = async () => {
     if (editFormData.timeSlots.length === 0) return alert("請至少選擇一個時段！");
     
@@ -940,10 +942,6 @@ export default function App() {
       timeSlots: prev.timeSlots.includes(slot) ? prev.timeSlots.filter(s => s !== slot) : [...prev.timeSlots, slot]
     }));
   };
-
-  // ==============================================
-  // 👥 團隊管理與排班處理
-  // ==============================================
 
   const handleAddAdvisor = async (e) => {
     e.preventDefault();
@@ -1026,10 +1024,6 @@ export default function App() {
     catch (error) { alert("狀態更新失敗，請檢查網路連線。"); }
   };
 
-  // ==============================================
-  // 🤖 AI 智能輔助函式 (Gemini API)
-  // ==============================================
-
   const handleAIGetRecommendation = async () => {
     if (!aiInput.trim()) return;
     setLoadingAi(true);
@@ -1040,7 +1034,7 @@ export default function App() {
   const applyAiService = () => {
     const matchedService = serviceTypes.find(s => aiRec && aiRec.includes(s));
     if (matchedService) { setFormData(prev => ({ ...prev, serviceType: matchedService })); alert(`✅ 已為您自動套用服務：${matchedService}`); }
-    else { alert("請手手動在下方表單選擇對應的服務喔！"); }
+    else { alert("請手動在下方表單選擇對應的服務喔！"); }
   };
 
   const generatePostSessionAdvice = async (apptId, customerName, service, note) => {
@@ -1054,10 +1048,6 @@ export default function App() {
     const textArea = document.createElement("textarea"); textArea.value = text; document.body.appendChild(textArea); textArea.select();
     try { document.execCommand('copy'); alert('✅ 已複製！可直接貼上至 LINE 傳給客人'); } catch (err) { } document.body.removeChild(textArea);
   };
-
-  // ==============================================
-  // 📊 日曆與過濾器資料準備
-  // ==============================================
 
   const advisorFutureSchedules = useMemo(() => {
     if (!scheduleAdvisorId) return [];
@@ -1097,18 +1087,17 @@ const analyticsData = useMemo(() => {
     let kpi = { total: 0, new: 0, return: 0, totalHours: 0 };
     let advisorStats = {}, serviceStats = {};
 
-    // 1. 計算「預約數量」與「勞務工時」
     appointments.forEach(appt => {
         if (appt.date && appt.date.startsWith(selectedMonth) && appt.status !== '已取消') {
         if (!selectedAnalyticsAdvisors.includes(appt.advisorId)) return;
         kpi.total++;
-        if (appt.customerType === '初次預約') kpi.new++; else kpi.return++;
+        if (appt.customerType === '首次評估') kpi.new++; else kpi.return++;
         
         const aid = appt.advisorId || 'any';
         if (!advisorStats[aid]) advisorStats[aid] = { count: 0, hours: 0, newCount: 0, revenue: 0 };
         
         advisorStats[aid].count += 1;
-        if (appt.customerType === '初次預約') advisorStats[aid].newCount += 1;
+        if (appt.customerType === '首次評估') advisorStats[aid].newCount += 1;
 
         const slotsCount = appt.timeSlots ? appt.timeSlots.length : (appt.exactDisplayTime ? appt.exactDisplayTime.split(',').length : 1);
         const sessionHours = slotsCount * 0.5;
@@ -1120,34 +1109,64 @@ const analyticsData = useMemo(() => {
       }
     });
 
-    // 2. 彙整「雙系統」的實際營收金額
-    revenueRecords.forEach(record => {
-      // 兼容 POS (finalAmount/date) 與 病歷系統 (amount/timestamp) 的欄位差異
+revenueRecords.forEach(record => {
       const amount = record.finalAmount || record.amount || 0; 
       const recordDate = record.date || record.timestamp || record.dateStr || "";
       const aid = record.advisorId;
       
       if (recordDate.startsWith(selectedMonth) && aid && advisorStats[aid]) {
-        advisorStats[aid].revenue += amount;
+        advisorStats[aid].revenue += amount; // 總創造營收
+
+        // 👈 新增：計算這筆結帳單裡面，有多少是「周邊商品」的營收，以及該發多少「抽成獎金」
+        let addonRevenue = 0;
+        let addonComm = 0;
+
+        if (record.items && Array.isArray(record.items)) {
+          record.items.forEach(item => {
+             if (!item.isBase && item.commission > 0) {
+                 addonComm += (item.commission * item.qty);
+                 addonRevenue += (item.price * item.qty);
+             }
+          });
+        }
+        advisorStats[aid].addonCommission = (advisorStats[aid].addonCommission || 0) + addonComm;
+        advisorStats[aid].addonRevenue = (advisorStats[aid].addonRevenue || 0) + addonRevenue;
       }
     });
 
-    // 3. 💸 核心薪資與抽成計算邏輯！
     Object.keys(advisorStats).forEach(aid => {
       const stats = advisorStats[aid];
       const isBoss = teamMembers.find(m => m.id === aid)?.role === 'admin';
       
-      // 規則 A：管理員抽成 100%，一般顧問滿 40 堂抽成 55%，否則 50%
+      // 👈 新增：把「算 % 數的基礎服務」跟「周邊商品」切開來
+      let baseRevenue = stats.revenue - (stats.addonRevenue || 0);
+      if (baseRevenue < 0) baseRevenue = 0; // 防呆機制
+
       stats.commissionRate = isBoss ? 1.0 : (stats.hours >= 40 ? 0.55 : 0.50);
-      stats.laborPay = Math.round(stats.revenue * stats.commissionRate); // 實際勞務抽成
       
-      // 規則 B：初評轉單獎金 (這裡以服務新客數做基準，實務上可再對比是否儲值)
+      // 👈 新增：勞務抽成 = (基礎服務營收 * 抽成%) + 周邊商品的固定自訂獎金
+      stats.laborPay = Math.round(baseRevenue * stats.commissionRate) + (stats.addonCommission || 0); 
+      
       stats.bonus = 0;
       if (stats.newCount >= 20) stats.bonus = 2000;
       else if (stats.newCount >= 10) stats.bonus = 1000;
       else if (stats.newCount >= 5) stats.bonus = 500;
 
-      // 總薪資 = 勞務抽成 + 獎金
+      stats.totalSalary = stats.laborPay + stats.bonus;
+    });
+
+    Object.keys(advisorStats).forEach(aid => {
+      const stats = advisorStats[aid];
+      const isBoss = teamMembers.find(m => m.id === aid)?.role === 'admin';
+      
+      stats.commissionRate = isBoss ? 1.0 : (stats.hours >= 40 ? 0.55 : 0.50);
+      stats.laborPay = Math.round(stats.revenue * stats.commissionRate); 
+      
+      stats.bonus = 0;
+      if (stats.newCount >= 20) stats.bonus = 2000;
+      else if (stats.newCount >= 10) stats.bonus = 1000;
+      else if (stats.newCount >= 5) stats.bonus = 500;
+
       stats.totalSalary = stats.laborPay + stats.bonus;
     });
 
@@ -1173,9 +1192,6 @@ const analyticsData = useMemo(() => {
       </div>
     );
   };
-  // ==============================================
-  // 🗓️ 日曆視角計算與準備進入畫面渲染
-  // ==============================================
 
   const getCalendarDays = () => {
     const dates = [];
@@ -1194,27 +1210,22 @@ const analyticsData = useMemo(() => {
   };
   const calendarDays = getCalendarDays();
 
-  // ==============================================
-  // 🎨 畫面渲染開始 (UI Render)
-  // ==============================================
   return (
     <div className="min-h-screen bg-[#192039] p-4 md:p-8 font-sans text-slate-800 selection:bg-[#e3b5a1] selection:text-[#192039] flex flex-col relative">
       
       {/* ================= 左上角浮動按鈕群組 ================= */}
       <div className="fixed top-4 left-4 z-50 flex items-center gap-3">
-        {/* 1. 設定/登出按鈕 */}
         <button onClick={() => !currentUser ? setShowLoginModal(true) : handleLogout()} className="p-2.5 bg-[#12182c]/80 backdrop-blur-md rounded-full text-white/50 hover:text-[#e3b5a1] border border-white/10 transition-all shadow-md" title={currentUser ? "登出" : "管理員入口"}>
           <Settings size={20} />
         </button>
 
         {currentUser && (
           <>
-            {/* 2. 收銀機按鈕 */}
             <button onClick={() => setShowPOS(true)} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-full shadow-md flex items-center gap-2 transition-all active:scale-95">
               💰 收銀機
             </button>
 
-            {/* 3. 病歷系統按鈕 */}
+            {/* 🌟 修正第三階段：合規命名 */}
             <a 
               href="https://smart-recovery-chart.vercel.app/"     
               target="_blank" 
@@ -1222,12 +1233,11 @@ const analyticsData = useMemo(() => {
               className="bg-[#151b2b] text-[#e2bba9] hover:bg-[#202942] border border-[#e2bba9]/30 font-bold py-2.5 px-4 rounded-full shadow-md flex items-center gap-2 transition-all active:scale-95"
             >
               <Activity size={18} /> 
-              開啟電子病歷
+              開啟專屬評估戰情室
             </a>
           </>
         )}
       </div>
-      {/* ======================================================== */}
       
       {!currentUser && (
         <a href="https://lin.ee/SaYoB3y" target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 z-50 bg-[#06C755] text-white p-4 rounded-full shadow-[0_10px_25px_rgba(6,199,85,0.4)] hover:scale-110 transition-all flex items-center justify-center gap-2 group">
@@ -1236,7 +1246,6 @@ const analyticsData = useMemo(() => {
         </a>
       )}
 
-      {/* ================= 系統全域彈出視窗 (Modals) ================= */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-[#192039]/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl relative">
@@ -1441,9 +1450,9 @@ const analyticsData = useMemo(() => {
                           </div>
                         </div>
                         <div className="bg-slate-50 p-5 rounded-2xl border">
-                          <label className="block text-base font-bold text-slate-700 mb-3">初次來店？ *</label>
+                          <label className="block text-base font-bold text-slate-700 mb-3">首次來店？ *</label>
                           <div className="flex gap-3">
-                            <button type="button" onClick={() => setFormData({ ...formData, isFirstTime: 'yes' })} className={`flex-1 py-4 rounded-xl border-2 font-bold text-base ${formData.isFirstTime === 'yes' ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white'}`}>是，初次預約</button>
+                            <button type="button" onClick={() => setFormData({ ...formData, isFirstTime: 'yes' })} className={`flex-1 py-4 rounded-xl border-2 font-bold text-base ${formData.isFirstTime === 'yes' ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white'}`}>是，首次評估</button>
                             <button type="button" onClick={() => setFormData({ ...formData, isFirstTime: 'no' })} className={`flex-1 py-4 rounded-xl border-2 font-bold text-base ${formData.isFirstTime === 'no' ? 'bg-[#192039] text-[#e3b5a1]' : 'bg-white'}`}>否，我來過</button>
                           </div>
                         </div>
@@ -1546,13 +1555,14 @@ const analyticsData = useMemo(() => {
                   </>
                 )}
 
+                {/* 🌟 修正第三階段：合規命名 */}
                 <a 
                   href="https://smart-recovery-chart.vercel.app/" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="w-full text-left px-4 py-3 mt-2 rounded-xl text-[14px] font-bold flex items-center gap-3 transition-colors bg-[#151b2b] text-[#e2bba9] hover:bg-[#202942] border border-[#e2bba9]/30 shadow-sm"
                 >
-                  <Activity size={18} /> 開啟電子病歷庫
+                  <Activity size={18} /> 開啟專屬評估戰情室
                 </a>
               </div>
 
@@ -1618,6 +1628,9 @@ const analyticsData = useMemo(() => {
                         </select>
                         <input type="text" required placeholder="新增項目名稱..." value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} className="flex-1 min-w-0 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#9aa486]/50" />
                         <input type="number" required placeholder="$ 價格" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} className="w-24 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-slate-700 focus:ring-2 focus:ring-[#9aa486]/50" />
+                        {newProduct.type === 'addons' && (
+    <input type="number" placeholder="$ 顧問抽成" value={newProduct.commission} onChange={e => setNewProduct({...newProduct, commission: e.target.value})} className="w-24 px-3 py-2.5 bg-white rounded-xl text-sm outline-none font-bold text-amber-600 focus:ring-2 focus:ring-amber-300" title="若賣出此商品，顧問可獲得的固定獎金" />
+  )}
                         <button type="submit" className="bg-[#9aa486] hover:bg-[#868f74] text-white p-2.5 rounded-xl transition-colors shadow-sm"><Plus size={18}/></button>
                       </form>
                     </div>
@@ -1760,17 +1773,31 @@ const analyticsData = useMemo(() => {
                             <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                               <td className="p-3 font-bold text-slate-800 text-[14px]">{m.name}</td>
                               <td className="p-3 text-slate-600">{m.id}</td>
-                              <td className="p-3 text-slate-600">
-                                <div className="flex items-center gap-2">
-                                  <span>{m.pwd}</span>
-                                  <button onClick={() => {
-                                    const newPwd = window.prompt(`請輸入 ${m.name} 的新密碼：`, m.pwd);
-                                    if (newPwd !== null && newPwd.trim() !== '') handleUpdatePassword(m.id, newPwd);
-                                  }} className="text-slate-400 hover:text-indigo-500 transition-colors" title="修改密碼">
-                                    <Edit2 size={14} />
-                                  </button>
-                                </div>
-                              </td>
+                             <td className="p-3 text-slate-600">
+  <div className="flex items-center gap-2">
+    {/* 密碼隱藏或顯示 */}
+    <span className={m.id === 'admin' ? "text-slate-400" : ""}>
+      {m.id === 'admin' ? '********' : m.pwd}
+    </span>
+    
+    {/* 只有登入者是 admin，且目標不是 admin 帳號時，才顯示修改按鈕 */}
+    {currentUser?.role === 'admin' && m.id !== 'admin' && (
+      <button onClick={() => {
+        const newPwd = window.prompt(`請輸入 ${m.name} 的新密碼：`, m.pwd);
+        if (newPwd !== null && newPwd.trim() !== '') handleUpdatePassword(m.id, newPwd);
+      }} className="text-slate-400 hover:text-indigo-500 transition-colors" title="修改密碼">
+        <Edit2 size={14} />
+      </button>
+    )}
+    
+    {/* 如果是 admin 帳號，顯示鎖定標籤 */}
+    {m.id === 'admin' && (
+      <span className="text-[11px] bg-rose-100 text-rose-600 px-2 py-0.5 rounded font-bold ml-1">
+        🔒 系統鎖定
+      </span>
+    )}
+  </div>
+</td>
                               <td className="p-3 text-center">
                                 {m.role === 'admin' ? (
                                   <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-bold">管理員</span>
@@ -1871,7 +1898,7 @@ const analyticsData = useMemo(() => {
                                 <td className="p-3 text-right font-black text-emerald-600 text-[16px] bg-emerald-50/30">
                                  <div className="flex items-center justify-end gap-3">
                                 <span>${stats.totalSalary.toLocaleString()}</span>
-    
+  
                                   {/* 已轉帳按鈕 */}
                                  <button 
                                  onClick={() => handleTogglePaid(m.id, selectedMonth)}
@@ -1977,7 +2004,7 @@ const analyticsData = useMemo(() => {
                   </div>
                   {displayAppointments.map(appt => (
                     <div key={appt.id} className="border p-5 bg-white rounded-2xl shadow-sm flex flex-col gap-3 relative overflow-hidden">
-                      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${appt.customerType === '初次預約' ? 'bg-amber-400' : 'bg-[#9aa486]'}`}></div>
+                      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${appt.customerType === '首次評估' ? 'bg-amber-400' : 'bg-[#9aa486]'}`}></div>
                       <div className="pl-2">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <span className="font-bold text-lg">{appt.name}</span>
@@ -2200,7 +2227,7 @@ const analyticsData = useMemo(() => {
                                 
                                 const top = ((parseInt(startHr) - START_HOUR) * 2 + (parseInt(startMin) === 30 ? 1 : 0)) * SLOT_HEIGHT;
                                 const height = sortedSlots.length * SLOT_HEIGHT;
-                                const isFirstTime = appt.customerType === '初次預約';
+                                const isFirstTime = appt.customerType === '首次評估';
 
                                 return (
                                   <div 
@@ -2395,13 +2422,14 @@ const analyticsData = useMemo(() => {
                   </div>
                   
                   <label className="block text-sm font-bold text-slate-600 mb-2">周邊商品與加價購 (點擊可自動累加)</label>
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {priceList.addons?.map(a => (
-                      <button key={a.name} onClick={() => handleAddCartItem(a.name, a.price, 1)} className="bg-slate-100 text-slate-700 border border-slate-200 px-3 py-2 rounded-lg text-sm font-bold shadow-sm">
-                        + {a.name} (${a.price})
-                      </button>
-                    ))}
-                  </div>
+<div className="flex flex-wrap gap-2 mb-4">
+  {priceList.addons?.map(a => (
+    <button key={a.name} onClick={() => handleAddCartItem(a.name, a.price, 1, false, a.commission || 0)} className="bg-slate-100 text-slate-700 border border-slate-200 px-3 py-2 rounded-lg text-sm font-bold shadow-sm flex flex-col items-center">
+      <span>+ {a.name} (${a.price})</span>
+      {a.commission > 0 && <span className="text-[10px] text-amber-600 font-extrabold mt-0.5">抽成 ${a.commission}</span>}
+    </button>
+  ))}
+</div>
 
                   <label className="block text-sm font-bold text-slate-600 mb-2">自訂商品新增</label>
                   <div className="flex gap-2">
@@ -2555,7 +2583,7 @@ const analyticsData = useMemo(() => {
                       isFirstTime: 'no', 
                       advisorId: rebookFormData.consultant, 
                       advisorName: finalAdvisorName,
-                      customerType: '舊客複診', 
+                      customerType: '舊客保養', 
                       serviceType: rebookFormData.service, 
                       date: rebookFormData.date, 
                       timeSlots: [rebookFormData.time], 
@@ -2571,7 +2599,7 @@ const analyticsData = useMemo(() => {
                         method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
                           action: "new", name: rebookCustomer.name, date: rebookFormData.date, time: rebookFormData.time, 
-                          service: `[舊客複診] ${rebookFormData.service} (指定：${finalAdvisorName})`, phone: rebookCustomer.phone, needs: "現場直接預約下次" 
+                          service: `[舊客保養] ${rebookFormData.service} (指定：${finalAdvisorName})`, phone: rebookCustomer.phone, needs: "現場直接預約下次" 
                         })
                       });
                     }
