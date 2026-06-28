@@ -1215,6 +1215,7 @@ const analyticsData = useMemo(() => {
     const sectionSlots = ALL_TIME_SLOTS.filter(s => { const h = parseInt(s.split(':')[0]); return h >= startH && h < endH; });
     const allSelected = sectionSlots.every(s => selectedSlots.includes(s));
     return (
+      
       <div className={`mb-4 p-4 rounded-2xl border ${borderColor} bg-white shadow-sm`}>
         <div className="flex justify-between items-center mb-3">
           <h4 className={`text-[15px] font-bold flex items-center gap-2 ${textColor}`}>{icon} {title}</h4>
@@ -1248,8 +1249,34 @@ const analyticsData = useMemo(() => {
   const calendarDays = getCalendarDays();
 
   return (
+    
     <div className="min-h-screen bg-[#192039] p-4 md:p-8 font-sans text-slate-800 selection:bg-[#e3b5a1] selection:text-[#192039] flex flex-col relative">
       
+      {/* 🌟 這裡開始是手機字體強制放大的防護罩 */}
+    <style dangerouslySetInnerHTML={{__html: `
+      html {
+        -webkit-text-size-adjust: 100% !important;
+        text-size-adjust: 100% !important;
+      }
+      @media (max-width: 640px) {
+        /* 手機版：將原本看不清的 text-xs 強制提升至好讀的大小 */
+        .text-xs {
+          font-size: 0.85rem !important; /* 約 13.6px */
+          line-height: 1.35rem !important;
+        }
+        /* 手機版：將原本較小的 text-sm 稍微放大 */
+        .text-sm {
+          font-size: 0.95rem !important; /* 約 15.2px */
+          line-height: 1.45rem !important;
+        }
+        /* 避免 iPhone 按鈕或輸入框點擊時頁面會稍微放大晃動 */
+        input, select, textarea {
+          font-size: 16px !important;
+        }
+      }
+    `}} />
+    {/* 🌟 手機防護罩結束 */}
+    
       {/* ================= 左上角浮動按鈕群組 ================= */}
       <div className="fixed top-4 left-4 z-50 flex items-center gap-3">
         <button onClick={() => !currentUser ? setShowLoginModal(true) : handleLogout()} className="p-2.5 bg-[#12182c]/80 backdrop-blur-md rounded-full text-white/50 hover:text-[#e3b5a1] border border-white/10 transition-all shadow-md" title={currentUser ? "登出" : "管理員入口"}>
