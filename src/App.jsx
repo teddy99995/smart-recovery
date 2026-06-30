@@ -291,6 +291,7 @@ export default function App() {
   const [showRebookModal, setShowRebookModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(null);
   const [memoInput, setMemoInput] = useState('');
+  const [statusInput, setStatusInput] = useState('active');
   const [rebookCustomer, setRebookCustomer] = useState({ name: "", phone: "" });
   const [rebookFormData, setRebookFormData] = useState({ date: "", time: "", service: "", consultant: "" });
   const [formData, setFormData] = useState({
@@ -385,10 +386,10 @@ const [newAdvisor, setNewAdvisor] = useState({ id: '', name: '', pwd: '', role: 
     });
 
     const unsubMemos = onSnapshot(query(collection(db, "customerMemos")), (snapshot) => {
-      const memos = {};
-      snapshot.forEach(doc => { memos[doc.id] = doc.data().text; });
-      setCustomerMemos(memos);
-    });
+  const memos = {};
+  snapshot.forEach(doc => { memos[doc.id] = doc.data(); }); // 改為存入完整物件
+  setCustomerMemos(memos);
+});
 
    const unsubTeam = onSnapshot(collection(db, "users"), (snapshot) => {
       if (snapshot.empty) {
@@ -754,27 +755,33 @@ const handleQuickCheckout = (appt) => {
     setShowRebookModal(true);
   };
 
-  const handleOpenHistoryModal = (phone) => {
-    setShowHistoryModal(phone);
-    setMemoInput(customerMemos[phone] || '');
-  };
+  // ✨ 替換這兩個函式：
+const handleOpenHistoryModal = (phone) => {
+  setShowHistoryModal(phone);
+  const memoData = customerMemos[phone] || {};
+  setMemoInput(memoData.text || '');
+  setStatusInput(memoData.status || 'active'); // 預設為治療期
+};
 
-  const handleSaveMemo = async () => {
-    if (!showHistoryModal) return;
-    try {
-      await setDoc(doc(db, "customerMemos", showHistoryModal), { text: memoInput }, { merge: true });
-      alert("✅ 客戶備忘錄已成功儲存！下次預約時將會跳出提醒。");
-    } catch (e) { alert("儲存失敗：" + e.message); }
-  };
+const handleSaveMemo = async () => {
+  if (!showHistoryModal) return;
+  try {
+    await setDoc(doc(db, "customerMemos", showHistoryModal), { 
+      text: memoInput,
+      status: statusInput // 將狀態一併寫入 Firebase
+    }, { merge: true });
+    alert("✅ 客戶備忘錄與療程狀態已成功儲存！ 下次預約時將會跳出提醒。");
+  } catch (e) { alert("儲存失敗：" + e.message); }
+};
 
   const blacklistedList = useMemo(() => {
-    return Object.entries(customerMemos)
-      .filter(([phone, memo]) => memo && memo.includes('【黑名單】'))
-      .map(([phone, memo]) => {
-        const latestAppt = appointments.find(a => a.phone === phone);
-        return { phone, name: latestAppt ? latestAppt.name : '未知客戶', memo };
-      });
-  }, [customerMemos, appointments]);
+  return Object.entries(customerMemos)
+    .filter(([phone, data]) => data?.text && data.text.includes('【黑名單】'))
+    .map(([phone, data]) => {
+      const latestAppt = appointments.find(a => a.phone === phone);
+      return { phone, name: latestAppt ? latestAppt.name : '未知客戶', memo: data.text };
+    });
+}, [customerMemos, appointments]);
 
   const handleRemoveBlacklist = async (phone, currentMemo) => {
     if (window.confirm(`確定要將 ${phone} 移出黑名單嗎？\n(移除後他們即可正常預約)`)) {
@@ -788,7 +795,7 @@ const handleQuickCheckout = (appt) => {
   // 🌟 修正第二階段：升級防撞堂機制 (提交前的雲端再驗證)
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const clientMemo = customerMemos[formData.phone] || '';
+    const clientMemo = customerMemos[formData.phone]?.text || '';
     if (clientMemo.includes('【黑名單】')) {
       setConflictError('系統目前無法受理您的線上預約，請透過官方 LINE 聯繫專人為您服務。'); return;
     }
@@ -2110,7 +2117,12 @@ const analyticsData = useMemo(() => {
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <span className="font-bold text-lg">{appt.name}</span>
                           <span className="text-[11px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-600">{appt.customerType}</span>
-                          
+                          {customerMemos[appt.phone]?.status === 'maintenance' && (
+  <span className="text-[11px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold border border-emerald-200">
+    🌿 保養期
+  </span>
+)}
+
                           {/* 自動連動顯示剩餘堂數 */}
                           {(() => {
                             const cust = customers.find(c => c.phone === appt.phone || c.id === appt.phone);
@@ -2124,12 +2136,12 @@ const analyticsData = useMemo(() => {
                           <span className="bg-[#192039] text-[#e3b5a1] px-2 py-0.5 rounded text-xs font-bold tracking-wider">{appt.date} {appt.exactDisplayTime}</span>
                         </div>
                         <div className="text-[13px] font-bold text-slate-500 mb-2">{appt.serviceType} | 顧問: {appt.advisorName}</div>
-                        {customerMemos[appt.phone] && (
-                          <div className="text-xs bg-amber-50 text-amber-700 p-3 rounded-lg border border-amber-200 mb-2 leading-relaxed flex items-start gap-1.5 shadow-sm">
-                            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-                            <span><strong className="font-bold">內部備忘錄：</strong>{customerMemos[appt.phone]}</span>
-                          </div>
-                        )}
+                        {customerMemos[appt.phone]?.text && (
+  <div className="text-xs bg-amber-50 text-amber-700 p-3 rounded-lg border border-amber-200 mb-2 leading-relaxed flex items-start gap-1.5 shadow-sm">
+    <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+    <span><strong className="font-bold">內部備忘錄：</strong>{customerMemos[appt.phone].text}</span>
+  </div>
+)}
                         {apptFilter !== 'past' && (
                           <button onClick={() => handleQuickCheckout(appt)} className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm w-fit">
                             <DollarSign size={12} /> 一鍵結帳
@@ -2541,6 +2553,23 @@ const analyticsData = useMemo(() => {
                     <button onClick={handleAddCustomItem} className="bg-blue-500 hover:bg-blue-600 transition-colors text-white px-4 rounded-lg font-bold text-sm shadow-sm">加入</button>
                   </div>
                 </div>
+
+{/* 新增：客戶狀態標籤切換 */}
+<div className="flex gap-3 mb-4">
+  <button
+    onClick={() => setStatusInput('active')}
+    className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-all ${statusInput === 'active' ? 'bg-rose-50 border-rose-300 text-rose-600 shadow-sm' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}
+  >
+    🔥 急性治療期
+  </button>
+  <button
+    onClick={() => setStatusInput('maintenance')}
+    className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-all ${statusInput === 'maintenance' ? 'bg-emerald-50 border-emerald-300 text-emerald-600 shadow-sm' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}
+  >
+    🌿 常態保養期
+  </button>
+</div>
+
 
 <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 space-y-4">
                   <div>
