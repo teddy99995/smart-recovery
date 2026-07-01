@@ -266,12 +266,29 @@ export default function App() {
   const [userNewPwd, setUserNewPwd] = useState('');
   const [appMode, setAppMode] = useState('booking');
 
-  const [payrollStatus, setPayrollStatus] = useState({});
-  const handleTogglePaid = (advisorId, month) => {
-    setPayrollStatus(prev => ({
-      ...prev,
-      [`${advisorId}_${month}`]: !prev[`${advisorId}_${month}`]
-    }));
+  const [payrollSnapshots, setPayrollSnapshots] = useState({});
+  const handleTogglePaid = async (advisorId, month, currentStats) => {
+    const docId = `${advisorId}_${month}`;
+    const isLocked = !!payrollSnapshots[docId];
+
+    if (isLocked) {
+      if (window.confirm("確定要取消「已發放」狀態嗎？\n這將解除歷史快照鎖定，該月薪資將隨最新規則重新計算。")) {
+        await deleteDoc(doc(db, "payroll_snapshots", docId));
+      }
+    } else {
+      if (window.confirm("💰 標記發放後，系統將永久鎖定此月份的薪資數字（建立歷史快照）。\n未來即使更改抽成率，此月份數字也不會變動。確定結算嗎？")) {
+        await setDoc(doc(db, "payroll_snapshots", docId), {
+          advisorId,
+          month,
+          laborPay: currentStats.laborPay,
+          bonus: currentStats.bonus,
+          totalSalary: currentStats.totalSalary,
+          regularRate: currentStats.regularRate,
+          designatedRate: currentStats.designatedRate,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
   };
 
   const [calViewMode, setCalViewMode] = useState('week');
@@ -438,13 +455,20 @@ const [newAdvisor, setNewAdvisor] = useState({ id: '', name: '', pwd: '', role: 
       setDepositPlans(plans.sort((a, b) => a.sessions - b.sessions));
     });
 
-    // 🌟 修正第一階段：加上客戶的監聽器
+// 🌟 修正第一階段：加上客戶的監聽器
     const unsubCustomers = onSnapshot(collection(db, "customers"), (snapshot) => {
       const custList = [];
       snapshot.forEach(doc => {
         custList.push({ id: doc.id, ...doc.data() });
       });
       setCustomers(custList);
+    });
+
+    // ✨ 薪資快照監聽器
+    const unsubSnapshots = onSnapshot(collection(db, "payroll_snapshots"), (snapshot) => {
+      const snaps = {};
+      snapshot.forEach(doc => { snaps[doc.id] = doc.data(); });
+      setPayrollSnapshots(snaps);
     });
 
     return () => { 
@@ -456,8 +480,10 @@ const [newAdvisor, setNewAdvisor] = useState({ id: '', name: '', pwd: '', role: 
       unsubRevenue(); 
       unsubPriceList(); 
       unsubPlans(); 
-      unsubCustomers(); // 🌟 記得關閉
+      unsubCustomers();
+      unsubSnapshots(); // ✨ 關閉快照監聽
     };
+    
   }, []);
 
   useEffect(() => { setSelectedAnalyticsAdvisors(teamMembers.map(m => m.id)); }, [teamMembers]);
@@ -707,6 +733,31 @@ const handleQuickCheckout = (appt) => {
     }]);
     setCalcDiscount('10'); 
     setShowPOS(true);
+  };
+  const handleDeductPackage = async (appt, cust) => {
+    if (!window.confirm(`確定要扣抵 ${cust.name} 的套票 1 堂嗎？\n(扣抵後剩餘 ${cust.remainingSessions - 1} 堂)`)) return;
+    try {
+      // 1. 扣除該客戶的套票堂數
+      await updateDoc(doc(db, "customers", cust.id), {
+        remainingSessions: cust.remainingSessions - 1
+      });
+      // 2. 將預約單狀態改為「已完成」
+      await setDoc(doc(db, "appointments", appt.id), { status: '已完成' }, { merge: true });
+      
+      // 3. 寫入一筆 0 元的服務核銷紀錄 (讓報表能追蹤服務人次，但不增加現金營收)
+      await addDoc(collection(db, "revenueRecords"), {
+        date: new Date().toISOString(),
+        finalAmount: 0,
+        advisorId: appt.advisorId,
+        items: [{ name: `[套票核銷] ${appt.serviceType}`, price: 0, qty: 1, isBase: true }],
+        isDesignated: false,
+        isPackageDeduction: true
+      });
+      
+      alert('✅ 套票核銷成功！預約已自動結案。');
+    } catch (e) {
+      alert('核銷失敗：' + e.message);
+    }
   };
 
   const handleUpdateApptStatus = async (appt, newStatus) => {
@@ -1172,46 +1223,48 @@ const analyticsData = useMemo(() => {
       }
     });
 
-    // 3. 💸 核心薪資與抽成計算邏輯！(含 60% 封頂機制)
+    // 3. 💸 核心薪資與抽成計算邏輯！(含 60% 封頂機制與歷史快照防護)
     Object.keys(advisorStats).forEach(aid => {
       const stats = advisorStats[aid];
-      const member = teamMembers.find(m => m.id === aid);
-      const isBoss = member?.role === 'admin';
-      
-      // 取得該顧問自訂的基礎抽成 (預設50%)
-      const customRate = member?.commissionRate !== undefined ? Number(member.commissionRate) : 50;
-      let baseRate = customRate / 100;
-      
-      // 滿 40 堂加碼 5%
-      let bonusRate = 0;
-      if (stats.count >= 40) {
-         bonusRate = 0.05;
-      }
-      
-      // 💡 60% 封頂防呆機制：如果基礎 + 加碼超過 60%，就強制壓在 60%
-      let finalRegularRate = baseRate + bonusRate;
-      if (finalRegularRate > 0.60) {
-          finalRegularRate = 0.60;
-      }
-      
-      // 寫入最終抽成率 (老闆永遠是 100%)
-      stats.regularRate = isBoss ? 1.0 : finalRegularRate;
-      stats.designatedRate = isBoss ? 1.0 : 0.60;
-      
-      // 計算勞務薪資
-      let regularPay = Math.round((stats.regularRevenue || 0) * stats.regularRate);
-      let designatedPay = Math.round((stats.designatedRevenue || 0) * stats.designatedRate);
-      
-      // 總薪資 = 一般客 + 指定客 + 周邊商品獎金
-      stats.laborPay = regularPay + designatedPay + (stats.addonCommission || 0); 
-      
-      // 初評轉單獎金
-      stats.bonus = 0;
-      if (stats.newCount >= 20) stats.bonus = 2000;
-      else if (stats.newCount >= 10) stats.bonus = 1000;
-      else if (stats.newCount >= 5) stats.bonus = 500;
+      const snapId = `${aid}_${selectedMonth}`;
+      const snapshot = payrollSnapshots[snapId];
 
-      stats.totalSalary = stats.laborPay + stats.bonus;
+      if (snapshot) {
+        // 🔒 如果該月已經結算過，強制套用資料庫裡的「歷史快照」數字
+        stats.regularRate = snapshot.regularRate;
+        stats.designatedRate = snapshot.designatedRate || 0.6;
+        stats.laborPay = snapshot.laborPay;
+        stats.bonus = snapshot.bonus;
+        stats.totalSalary = snapshot.totalSalary;
+        stats.isLocked = true; // 標記為已鎖定
+      } else {
+        // 🔓 尚未結算，使用當前最新的規則進行「動態計算」
+        const member = teamMembers.find(m => m.id === aid);
+        const isBoss = member?.role === 'admin';
+        
+        const customRate = member?.commissionRate !== undefined ? Number(member.commissionRate) : 50;
+        let baseRate = customRate / 100;
+        let bonusRate = stats.count >= 40 ? 0.05 : 0;
+        
+        let finalRegularRate = baseRate + bonusRate;
+        if (finalRegularRate > 0.60) finalRegularRate = 0.60;
+        
+        stats.regularRate = isBoss ? 1.0 : finalRegularRate;
+        stats.designatedRate = isBoss ? 1.0 : 0.60;
+        
+        let regularPay = Math.round((stats.regularRevenue || 0) * stats.regularRate);
+        let designatedPay = Math.round((stats.designatedRevenue || 0) * stats.designatedRate);
+        
+        stats.laborPay = regularPay + designatedPay + (stats.addonCommission || 0); 
+        
+        stats.bonus = 0;
+        if (stats.newCount >= 20) stats.bonus = 2000;
+        else if (stats.newCount >= 10) stats.bonus = 1000;
+        else if (stats.newCount >= 5) stats.bonus = 500;
+
+        stats.totalSalary = stats.laborPay + stats.bonus;
+        stats.isLocked = false;
+      }
     });
 
     const sortedServices = Object.keys(serviceStats).map(key => ({ name: key, count: serviceStats[key] })).sort((a, b) => b.count - a.count);
@@ -2003,20 +2056,20 @@ const analyticsData = useMemo(() => {
                                     {stats.bonus > 0 ? `+$${stats.bonus.toLocaleString()}` : '-'}
                                   </td>
                                   
-                                <td className="p-3 text-right font-black text-emerald-600 text-[16px] bg-emerald-50/30">
+<td className="p-3 text-right font-black text-emerald-600 text-[16px] bg-emerald-50/30">
                                  <div className="flex items-center justify-end gap-3">
                                 <span>${stats.totalSalary.toLocaleString()}</span>
   
-                                  {/* 已轉帳按鈕 */}
-                                 <button 
-                                 onClick={() => handleTogglePaid(m.id, selectedMonth)}
-                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-1 ${
-                                payrollStatus[`${m.id}_${selectedMonth}`] 
-                              ? 'bg-emerald-500 text-white hover:bg-emerald-600' 
-                              : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
-                                  }`}
-                                    >
-                                     {payrollStatus[`${m.id}_${selectedMonth}`] ? <><CheckCircle size={14} /> 已轉帳</> : '標記轉帳'}
+                                  {/* 支援快照的鎖定/解鎖按鈕 */}
+                                  <button 
+                                    onClick={() => handleTogglePaid(m.id, selectedMonth, stats)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-1 ${
+                                      stats.isLocked 
+                                      ? 'bg-emerald-500 text-white hover:bg-emerald-600' 
+                                      : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                                    }`}
+                                  >
+                                    {stats.isLocked ? <><CheckCircle size={14} /> 已鎖定快照</> : '結算並鎖定'}
                                   </button>
                                  </div>
                               </td>
@@ -2143,10 +2196,26 @@ const analyticsData = useMemo(() => {
   </div>
 )}
                         {apptFilter !== 'past' && (
-                          <button onClick={() => handleQuickCheckout(appt)} className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm w-fit">
-                            <DollarSign size={12} /> 一鍵結帳
-                          </button>
-                        )}
+                          <div className="flex gap-2 mb-2">
+                            <button onClick={() => handleQuickCheckout(appt)} className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm w-fit">
+                              <DollarSign size={12} /> 單次收銀結帳
+                            </button>
+                            
+                            {/* ✨ 自動判斷：如果這位客人還有套票，就跳出扣堂按鈕 ✨ */}
+                            {(() => {
+                              const cust = customers.find(c => c.phone === appt.phone || c.id === appt.phone);
+                              if (cust && cust.remainingSessions > 0) {
+                                return (
+                                  <button onClick={() => handleDeductPackage(appt, cust)} className="text-xs bg-amber-100 border border-amber-300 text-amber-700 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded-lg font-black flex items-center gap-1 transition-all shadow-sm w-fit animate-pulse">
+                                    <Ticket size={12} /> 扣抵套票 (剩 {cust.remainingSessions} 堂)
+                                  </button>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        )} 
+                        
                         {appt.needs && <div className="text-xs bg-slate-50 p-2.5 rounded border text-slate-600 mb-2 leading-relaxed">預約備註：{appt.needs}</div>}
 
                         <div className="flex gap-2 border-t border-slate-100 pt-3 mt-3 flex-wrap items-center justify-between">
