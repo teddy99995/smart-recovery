@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { Calendar, User, Clock, Activity, Trash, PlusCircle, CheckCircle, AlertCircle, MessageCircle, MessageSquare, Clipboard, Lock, Users, LogOut, Key, Copy, Plus, List, Sun, Moon, Settings, Phone, Check, Filter, BarChart, Star, Crown, Bot, Sparkles, RefreshCw, DollarSign, Download, CalendarPlus, Inbox, AlertTriangle, FileText, UserPlus, Edit2, ShieldAlert, ShoppingBag, Zap, Ticket, Package, Trash2 } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, writeBatch, updateDoc, getDocs, where } from "firebase/firestore";
 
@@ -88,33 +88,7 @@ const BookingDisclaimer = () => {
     window.addEventListener('popstate', handlePopState);
     
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [showPOS, showHistoryModal, showRebookModal, editingAppt, editingRevenue])// ✨ 層級二：狀態鎖定攔截器 (安全精簡版)
-  useEffect(() => {
-    // 這裡只放你確定在 App.jsx 裡有宣告的狀態！
-    const modals = [showPOS, showHistoryModal, showRebookModal, editingAppt, editingRevenue];
-    const isAnyModalOpen = modals.some(m => m !== false && m !== null);
-
-    const handlePopState = (event) => {
-      // 1. 攔截返回訊號
-      window.history.pushState(null, '', window.location.href);
-
-      // 2. 依照優先級關閉視窗
-      if (showPOS) setShowPOS(false);
-      else if (showHistoryModal) setShowHistoryModal(null);
-      else if (showRebookModal) setShowRebookModal(false);
-      else if (editingAppt) setEditingAppt(null);
-      else if (editingRevenue) setEditingRevenue(null);
-    };
-
-    if (isAnyModalOpen) {
-      window.history.pushState(null, '', window.location.href);
-      window.addEventListener('popstate', handlePopState);
-    }
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [showPOS, showHistoryModal, showRebookModal, editingAppt, editingRevenue]);;
+  }, [showPOS, showHistoryModal, showRebookModal, editingAppt, editingRevenue]);
 
   return (
     <div className="bg-[#f4faec] border border-[#9aa486] rounded-2xl p-5 sm:p-6 mb-6 shadow-sm text-slate-700 text-left transition-all">
