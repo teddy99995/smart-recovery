@@ -357,6 +357,33 @@ const [newAdvisor, setNewAdvisor] = useState({ id: '', name: '', pwd: '', role: 
   const [loadingAi, setLoadingAi] = useState(false);
   const [adviceMap, setAdviceMap] = useState({});
 
+  // ✨ 層級二：彈出視窗的滑動攔截器 (History API 邏輯攔截)
+  useEffect(() => {
+    // 1. 偵測目前是否有任何「主要的彈出視窗」正在開啟
+    const isAnyModalOpen = showPOS || showHistoryModal || showRebookModal || editingAppt || editingRevenue || showLoginModal || showResetPwdModal || showPwdModal;
+    
+    if (isAnyModalOpen) {
+      // 2. 如果有視窗開啟，就塞入一個「假的」歷史紀錄作為緩衝
+      window.history.pushState({ modalOpen: true }, '');
+    }
+
+    // 3. 監聽 iPad / 手機系統的「滑動返回」事件
+    const handlePopState = () => {
+      // 只要觸發滑動返回，就強制關閉所有彈出視窗
+      setShowPOS(false);
+      setShowHistoryModal(null);
+      setShowRebookModal(false);
+      setEditingAppt(null);
+      setEditingRevenue(null);
+      setShowLoginModal(false);
+      setShowResetPwdModal(false);
+      setShowPwdModal(false);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [showPOS, showHistoryModal, showRebookModal, editingAppt, editingRevenue, showLoginModal, showResetPwdModal, showPwdModal]);
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTimeLine(new Date()), 60000);
     return () => clearInterval(timer);
