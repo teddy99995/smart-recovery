@@ -61,6 +61,35 @@ const BrandFooter = () => (
 const BookingDisclaimer = () => {
   const [isOpen, setIsOpen] = useState(true);
 
+  useEffect(() => {
+    const handlePopState = (event) => {
+      // 邏輯：偵測到滑動返回時，檢查是否有視窗開啟，有的話就優先關閉視窗
+      if (showPOS) {
+        setShowPOS(false);
+      } else if (showHistoryModal) {
+        setShowHistoryModal(null);
+      } else if (showRebookModal) {
+        setShowRebookModal(false);
+      } else if (editingAppt) {
+        setEditingAppt(null);
+      } else if (editingRevenue) {
+        setEditingRevenue(null);
+      } else {
+        // 如果沒有視窗開著，才允許滑動離開頁面（或是你也可以選擇什麼都不做，直接擋住）
+        return; 
+      }
+      
+      // 關鍵：這行是為了讓歷史紀錄保持在系統認為「我還在 App 裡」的狀態
+      window.history.pushState(null, '', window.location.href);
+    };
+
+    // 初始化時先塞入一個紀錄
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [showPOS, showHistoryModal, showRebookModal, editingAppt, editingRevenue]);
+
   return (
     <div className="bg-[#f4faec] border border-[#9aa486] rounded-2xl p-5 sm:p-6 mb-6 shadow-sm text-slate-700 text-left transition-all">
       <div 
