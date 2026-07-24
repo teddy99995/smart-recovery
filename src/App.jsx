@@ -2228,18 +2228,26 @@ const analyticsData = useMemo(() => {
                               <DollarSign size={12} /> 單次收銀結帳
                             </button>
                             
-                            {/* ✨ 自動判斷：如果這位客人還有套票，就跳出扣堂按鈕 ✨ */}
-                            {(() => {
-                              const cust = customers.find(c => c.phone === appt.phone || c.id === appt.phone);
-                              if (cust && cust.remainingSessions > 0) {
-                                return (
-                                  <button onClick={() => handleDeductPackage(appt, cust)} className="text-xs bg-amber-100 border border-amber-300 text-amber-700 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded-lg font-black flex items-center gap-1 transition-all shadow-sm w-fit animate-pulse">
-                                    <Ticket size={12} /> 扣抵套票 (剩 {cust.remainingSessions} 堂)
-                                  </button>
-                                );
-                              }
-                              return null;
-                            })()}
+                            {/* ✨ 套票扣抵區塊 (支援本人扣堂與親友代扣) ✨ */}
+{(() => {
+  const cust = customers.find(c => c.phone === appt.phone || c.id === appt.phone);
+  return (
+    <div className="flex gap-2">
+      {/* 本人扣抵按鈕：只有本人有餘額時才會出現 */}
+      {cust && cust.remainingSessions > 0 && (
+        <button onClick={() => handleDeductPackage(appt, cust)} className="text-xs bg-amber-100 border border-amber-300 text-amber-700 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded-lg font-black flex items-center gap-1 transition-all shadow-sm w-fit animate-pulse">
+          <Ticket size={12} /> 本人扣抵 (剩 {cust.remainingSessions} 堂)
+        </button>
+      )}
+      
+      {/* 親友代扣按鈕：常駐顯示，方便顧問隨時操作 */}
+      <button onClick={() => handleDeductFamilyPackage(appt)} className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-500 hover:text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all shadow-sm w-fit">
+        <Users size={12} /> 親友代扣套票
+      </button>
+    </div>
+  );
+})()}
+                            
                           </div>
                         )} 
                         
